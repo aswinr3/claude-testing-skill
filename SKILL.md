@@ -30,6 +30,7 @@ Platform-level verification runs on **Playwright**. Unit and integration run on 
 | Auditing existing tests, triaging flakes | `references/review.md` |
 | **Bug evidence — screenshot, store, link into the sheet** | `references/evidence.md` |
 | **Writing the result files — required at the end of every run** | `references/results.md` |
+| Keeping the suite running after the run — CI gates, artifacts as bug reports, flake in CI | `references/ci.md` |
 
 ## Gather every dependency FIRST, then run to completion
 
@@ -96,7 +97,7 @@ Report as: `Mode D — source + staging URL. Docs: PRD v2.3, 4 slices, Permissio
 | 8 | **Exploratory** | What's broken that no document predicted? | manual + ad-hoc |
 | 9 | **Non-functional** | Perf, a11y, security, compatibility, resilience budgets | Playwright, axe, Lighthouse |
 
-**Build order is not execution order.** In CI run: smoke → sanity → unit → integration → functional → regression → non-functional, failing fast at each gate. Exploratory is a human-in-the-loop session; its findings become functional and regression cases.
+**Build order is not execution order.** In CI run: smoke → sanity → unit → integration → functional → regression → non-functional, failing fast at each gate. Exploratory is a human-in-the-loop session; its findings become functional and regression cases. Which rung runs on which trigger, and how to wire the gate itself, is `ci.md`.
 
 **Mock is a technique, not a stage** — it appears inside the others. It's listed separately because dependency-failure behaviour is a documented requirement that routinely goes untested.
 
@@ -140,7 +141,7 @@ Column contract and the Gemini prompt: `test-cases-sheet.md`.
 - `modules/SLICE-NN-<name>.md` — **one file per vertical slice, including slices that were not tested at all.** This is the primary view: teams own features, not test types, so "is checkout releasable?" must not require grepping nine type files. Each states routes exercised, status, defects, results against the slice's four acceptance examples, and — the part everyone skips — which of its **Required evidence** is still owed.
 - `by-type/01-unit.md` … `by-type/09-non-functional.md` — **one file per test type, including types that did not run.** A missing file reads as "nothing wrong"; a file saying `Not run — no time box allocated` reads as what it is.
 - `conformance-matrix.md`, `design-conformance.md`, `ui-audit.md`, `defects.md`, `cases.tsv`.
-- `screenshots/` — **every confirmed bug is screenshotted at the moment of failure**, with the offending element highlighted, named `TC-####__rule__WxH.png`, plus Playwright traces.
+- `screenshots/` — **every failing case gets a screenshot, no exceptions — UI and API/backend alike.** UI failures are shot at the moment of failure with the offending element highlighted; API/CLI/backend failures are shot by rendering the request+response transcript to an image (see `evidence.md` §2c). One image per `Fail` row, named `TC-####__rule__WxH.png`, plus Playwright traces. **The count of failure screenshots must equal the count of `Fail` rows** — a failing case with no screenshot is an incomplete run, not a partial one.
 
 **Organise cases by module, not by test type.** Every case carries `Module (Slice)` as its first column, so the register groups and filters by the thing a team actually owns. Where the project has no slices, derive modules from route groups, bounded contexts, or top-level features — and say which you used.
 

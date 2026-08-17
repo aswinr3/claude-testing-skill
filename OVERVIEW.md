@@ -4,7 +4,7 @@ Everything this skill is, everything it does, what has been measured about it, a
 still cannot do. One file, kept honest.
 
 - **Name:** `testing`
-- **Size:** `SKILL.md` (151 lines) + 19 reference files (3,694 lines) + 5 scripts + 8 eval specs
+- **Size:** `SKILL.md` (152 lines) + 20 reference files (3,846 lines) + 5 scripts + 8 eval specs
 - **Runners:** Playwright (platform), Jest/Vitest (unit + integration); Cypress detected and adapted
 - **Gates:** 4, enforced in CI on every push
 
@@ -34,7 +34,7 @@ questions, and the second is the one a release decision needs.
 
 ```
 SKILL.md                  routing table · dependency gate · Step 0 · pipeline · non-negotiables
-├── references/           19 files, loaded on demand — never all at once
+├── references/           20 files, loaded on demand — never all at once
 ├── scripts/
 │   ├── preflight.sh      run this first; exits non-zero when the run would break
 │   ├── validate.py       9 structural + consistency checks over the skill itself
@@ -80,6 +80,7 @@ hand. Reference files carry the depth.
 | `playwright.md` | Locator priority, never-sleep waiting, fixtures over page objects, auth, network faults, API without a browser |
 | `unit-integration.md` | Jest/Vitest differences, structure, mocking, determinism |
 | `tooling.md` | Playwright MCP, Context7, per-mode tool→task map |
+| `ci.md` | The gate ladder per trigger, the 10-minute budget, artifacts as bug reports, flake in CI, handing the suite to the team |
 
 ### UI and design
 

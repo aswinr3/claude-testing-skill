@@ -2,6 +2,23 @@
 
 A defect row with no evidence gets argued about; a defect row with a screenshot gets fixed. Every confirmed bug captures evidence, the evidence lands in the run folder, and the sheet gets a link.
 
+## The rule: one screenshot per failing case, no exceptions
+
+**Every `Fail` row gets a screenshot — UI failures and API/backend failures alike.** The
+common mistake is to screenshot only the browser-visible bugs and leave API/CLI failures with
+"the transcript is the evidence." That is how a run with 27 failures ships 1 screenshot, and
+the report reads as if 26 defects were never really seen. A transcript is a *complement* to the
+screenshot, never a substitute for it.
+
+- **UI failure** → shoot the page at the moment of failure, offending element highlighted (§2).
+- **API / CLI / backend failure** → render the request + response (or command + output) to an
+  image and shoot that (§2c). The raw transcript still gets saved alongside as `Evidence Path`,
+  but the row also gets a real `.png`.
+- **Self-check before writing result files:** the number of failure screenshots in
+  `screenshots/` must equal the number of `Fail` rows in the register. If it doesn't, you have
+  not finished. List any case where capture genuinely failed as `Evidence: capture failed —
+  <reason>` (§7) — an empty cell reads as "no bug".
+
 ---
 
 ## 1. What to capture
@@ -250,6 +267,101 @@ Never report a sequence bug without stating which of the two it is. Determinism 
 if the sequence only fails sometimes, it is a flake until proven otherwise — `--repeat-each=10`
 before it goes in `defects.md`.
 
+## 2c. Screenshotting an API / CLI / backend failure
+
+There is no page to shoot, so **make one**: render the request and response into a small HTML
+document and screenshot it with Playwright. The result is a real `.png` that drops into the
+sheet and the ticket exactly like a UI shot — reviewers see the status code, the offending
+field, and the leaked stack without opening a file. This is mandatory for every non-UI `Fail`,
+not a nicety.
+
+```ts
+// e2e/evidence-api.ts
+import { chromium } from '@playwright/test'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+
+export type ApiFailure = {
+  caseId: string            // TC-0001
+  rule: string              // short slug, e.g. 'booking-idor-write'
+  request: {                // what you sent
+    method: string; url: string; headers?: Record<string, string>; body?: unknown
+  }
+  response: { status: number; body: unknown }   // what came back
+  expected: string          // the oracle that was violated, in one line
+}
+
+const esc = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+const show = (v: unknown) =>
+  typeof v === 'string' ? v : JSON.stringify(v, null, 2)
+// Redact obvious secrets so evidence is safe to share into Slack/tickets.
+const redact = (h: Record<string, string> = {}) =>
+  Object.fromEntries(Object.entries(h).map(([k, v]) =>
+    [k, /authorization|cookie|token/i.test(k) ? v.slice(0, 12) + '…(redacted)' : v]))
+
+/** Render one API failure to screenshots/<file>.png in the run folder. Returns the dest path. */
+export async function captureApiFailure(f: ApiFailure): Promise<string> {
+  const runDir = process.env.RUN_DIR
+  if (!runDir) throw new Error('RUN_DIR must point at this run\'s folder')
+  const bad = f.response.status >= 400
+  const html = `<!doctype html><meta charset="utf-8"><body style="margin:0;font:13px/1.5 ui-monospace,Menlo,monospace;background:#0b0e14;color:#d7dbe0;width:900px">
+    <div style="padding:16px 20px;background:#141925">
+      <div style="font:600 15px system-ui;color:#fff">${esc(f.caseId)} — ${esc(f.rule)}</div>
+      <div style="color:#8a93a2;margin-top:4px">Expected: ${esc(f.expected)}</div>
+    </div>
+    <div style="padding:16px 20px">
+      <div style="color:#8a93a2;text-transform:uppercase;font-size:11px;letter-spacing:.08em">Request</div>
+      <pre style="white-space:pre-wrap;margin:6px 0 18px">${esc(f.request.method)} ${esc(f.request.url)}
+${esc(Object.entries(redact(f.request.headers)).map(([k, v]) => `${k}: ${v}`).join('\n'))}
+
+${esc(f.request.body != null ? show(f.request.body) : '')}</pre>
+      <div style="color:#8a93a2;text-transform:uppercase;font-size:11px;letter-spacing:.08em">Response</div>
+      <div style="display:inline-block;margin:6px 0;padding:2px 10px;border-radius:4px;font-weight:600;background:${bad ? '#3a1720' : '#14321f'};color:${bad ? '#ff6b8a' : '#5ce08a'}">HTTP ${f.response.status}</div>
+      <pre style="white-space:pre-wrap;margin:6px 0">${esc(show(f.response.body)).slice(0, 4000)}</pre>
+    </div></body>`
+
+  const file = `${f.caseId}__${f.rule.replace(/[^a-z0-9]+/gi, '-')}__api.png`
+  const dest = path.join(runDir, 'screenshots', file)
+  await fs.mkdir(path.dirname(dest), { recursive: true })
+  const browser = await chromium.launch()
+  const page = await browser.newPage({ viewport: { width: 900, height: 200 } })
+  await page.setContent(html, { waitUntil: 'load' })
+  await page.screenshot({ path: dest, fullPage: true })
+  await browser.close()
+
+  // Save the raw transcript next to the image — the image is for humans, the text for greppers.
+  await fs.writeFile(dest.replace(/\.png$/, '.txt'),
+    `${f.request.method} ${f.request.url}\n\n${show(f.request.body ?? '')}\n\n--- HTTP ${f.response.status} ---\n${show(f.response.body)}\n`)
+  return dest
+}
+```
+
+Used inside an API test — capture on the failing assertion, exactly where you'd screenshot a page:
+
+```ts
+const res = await request.post('/bookings/', { headers: authAsUser4, data: { user_id: 1, schedule_id: 2, seat_id: 11 } })
+const body = await res.json()
+if (res.status() === 200) {   // oracle: a user must not book as another user
+  await captureApiFailure({
+    caseId: 'TC-0032', rule: 'booking-idor-write',
+    request: { method: 'POST', url: '/bookings/', headers: authAsUser4, body: { user_id: 1, schedule_id: 2, seat_id: 11 } },
+    response: { status: res.status(), body },
+    expected: 'user_id derived from token; cross-user booking refused (403)',
+  })
+}
+expect(res.status(), 'must not create a booking for another user').not.toBe(200)
+```
+
+Same helper works for a **CLI/backend** failure: put the command in `request.url`, the args in
+`request.body`, and stdout/stderr + exit code in `response`. The point is one consistent `.png`
+per failing case regardless of layer.
+
+**Batch/curl runs** (no Playwright test wrapping each probe) still owe screenshots: collect each
+failing probe as an `ApiFailure` record and loop `captureApiFailure` over them at the end. The
+naming (`TC-####__rule__api.png`) and the run-folder location are identical, so the
+"screenshots == Fail rows" self-check counts them the same way.
+
 ## 3. Naming and layout
 
 Two kinds of evidence, two shapes. Mixing them is what makes a run record unreadable at scale:
@@ -392,6 +504,10 @@ Severity is stated as **user impact**, not as a label. "High" on its own starts 
 
 ## 7. Honesty rules
 
+- **One screenshot per failing case — UI and API alike.** Before writing result files, count:
+  failure screenshots in `screenshots/` must equal `Fail` rows in the register. An API failure
+  is not exempt because "the transcript says it all" — render it (§2c) and shoot it. The only
+  acceptable gap is a case marked `Evidence: capture failed — <reason>`.
 - **Screenshot the failure, not a reconstruction.** A shot taken by re-running the steps by hand is a different run and may not show the same state. Capture at the moment of failure.
 - **Don't crop away context.** The URL bar, viewport size, and surrounding layout are usually what makes the bug diagnosable.
 - **Never edit a screenshot** beyond the highlight the helper adds. Annotate in `defects.md` instead.
