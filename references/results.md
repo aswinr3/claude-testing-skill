@@ -223,7 +223,7 @@ Keep the per-type table below it.
 | `design-conformance.md` | Token / component / layout findings, each labelled implementation drift, stale spec, or stale design file |
 | `ui-audit.md` | The DOM sweep grouped by route and viewport, high severity first |
 | `defects.md` | One entry per confirmed defect: repro steps, expected vs actual, affected requirement, severity as user impact, evidence paths, suggested owner |
-| `screenshots/` | Evidence captured at the moment of failure, named `TC-####__rule__WxH.png`, plus `traces/` |
+| `screenshots/` | **One screenshot per `Fail` row — UI *and* API/backend** (render API request+response to an image, `evidence.md` §2c). Captured at the moment of failure, named `TC-####__rule__WxH.png` (API shots use `__api.png`), plus `traces/`. The count here must equal the number of `Fail` rows |
 | `cases.tsv` | `Module (Slice)`, `Case ID`, `Status`, `Last Run`, `Defect Ref`, `Evidence`, `Evidence Path` for every executed case — paste back into the Google Sheet to update it. **`Module (Slice)` is the first column**, so the sheet groups and filters by module without rework |
 
 `cases.tsv` closes the loop with `test-cases-sheet.md`: the sheet is the case register, this is the run record, reconciled by `Case ID`.
@@ -238,5 +238,6 @@ These are the ones worth enforcing, because the failure mode is a report that re
 - **A drift is not a test failure to be fixed by editing the test.** Report it and let a human decide which side is wrong.
 - **State the environment.** A pass on a seeded local database is not a pass on staging.
 - **Pre-existing failures are labelled as such**, so they aren't attributed to this change — and are still counted as failures.
+- **Every failing case has a screenshot — UI and API alike.** Before the run is "done", the number of failure screenshots must equal the number of `Fail` rows; render API/backend failures to an image (`evidence.md` §2c). One screenshot for twenty-seven failures is an unfinished run, not a partial one.
 - **Every module gets a file, including untested ones.** Reporting only the modules you reached makes a partial run look like a full one — the same failure mode as omitting a test type.
 - **A module's verdict is measured against its own "Required evidence" list**, not against the tests you happened to write. Passing every case you wrote while skipping the evidence the slice demands is not a pass.
