@@ -1,0 +1,133 @@
+{
+  "capability": "ui-audit",
+  "version": "1.0",
+  "_note": "Cases derived from WCAG 2.2 AA and the DOM APIs a correct sweep must use — not from the skill's prose. `scope` narrows the checked content to the file that owns the topic.",
+  "evals": [
+    {
+      "id": "ua-001",
+      "prompt": "Detect text that is visually cut off on a page, deterministically and without screenshots",
+      "scope": ["ui-audit.md"],
+      "expected_patterns": ["scrollWidth", "clientWidth", "overflowX OR overflowY", "hidden OR clip", "textOverflow OR text-overflow OR ellipsis"],
+      "anti_patterns": ["compare screenshots to find clipping"],
+      "tags": ["clipping"]
+    },
+    {
+      "id": "ua-002",
+      "prompt": "An element has scrollWidth greater than clientWidth but overflow is visible. Is the text clipped?",
+      "scope": ["ui-audit.md"],
+      "expected_patterns": ["overflow", "visible OR hidden OR clip", "re:(gate|only when|actually)"],
+      "anti_patterns": [],
+      "tags": ["clipping", "false-positive"]
+    },
+    {
+      "id": "ua-003",
+      "prompt": "Detect an interactive control that is covered by an overlay and cannot actually be clicked",
+      "scope": ["ui-audit.md"],
+      "expected_patterns": ["elementFromPoint", "contains", "re:(left \\+|width / 2|centre|center)"],
+      "anti_patterns": ["getBoundingClientRect overlap between every pair", "rect intersection"],
+      "tags": ["occlusion"]
+    },
+    {
+      "id": "ua-004",
+      "prompt": "Why is comparing bounding boxes a bad way to find covered buttons?",
+      "scope": ["ui-audit.md"],
+      "expected_patterns": ["re:(hit.?test|elementFromPoint)", "re:(hidden|visibility|pointer-events|false positive)"],
+      "anti_patterns": [],
+      "tags": ["occlusion", "rationale"]
+    },
+    {
+      "id": "ua-005",
+      "prompt": "Skip elements that are not actually rendered when sweeping the DOM",
+      "scope": ["ui-audit.md"],
+      "expected_patterns": ["checkVisibility", "checkOpacity OR checkVisibilityCSS"],
+      "anti_patterns": [],
+      "tags": ["visibility"]
+    },
+    {
+      "id": "ua-006",
+      "prompt": "Check touch target sizes against WCAG 2.2 Level AA",
+      "scope": ["ui-audit.md"],
+      "expected_patterns": ["24", "re:2\\.5\\.8", "target size OR Target Size"],
+      "anti_patterns": ["44 is the WCAG AA minimum"],
+      "tags": ["wcag", "target-size"]
+    },
+    {
+      "id": "ua-007",
+      "prompt": "A 20px checkbox has a large clickable label next to it. Does it fail SC 2.5.8?",
+      "scope": ["ui-audit.md"],
+      "expected_patterns": ["label", "re:label\\[for", "CSS.escape OR closest", "re:(Math\\.max|Math\\.min|union|combined|effective)"],
+      "anti_patterns": [],
+      "tags": ["wcag", "label"]
+    },
+    {
+      "id": "ua-008",
+      "prompt": "A small link sits inside a paragraph of running text. Flag it for target size?",
+      "scope": ["ui-audit.md"],
+      "expected_patterns": ["inline", "re:(sentence|exception|exempt)", "textContent OR parentElement"],
+      "anti_patterns": [],
+      "tags": ["wcag", "inline-exception"]
+    },
+    {
+      "id": "ua-009",
+      "prompt": "Find broken images and images missing alt text on a page",
+      "scope": ["ui-audit.md"],
+      "expected_patterns": ["naturalWidth", "complete", "document.images OR querySelectorAll", "alt"],
+      "anti_patterns": [],
+      "tags": ["images"]
+    },
+    {
+      "id": "ua-010",
+      "prompt": "Capture console errors and failed network requests while auditing a page",
+      "scope": ["ui-audit.md"],
+      "expected_patterns": ["page.on", "console", "requestfailed OR response", "re:(before|prior to) .{0,20}(navigat|goto)"],
+      "anti_patterns": [],
+      "tags": ["console"]
+    },
+    {
+      "id": "ua-011",
+      "prompt": "Which of the sweep's findings are allowed to be severity high and fail a build?",
+      "scope": ["ui-audit.md"],
+      "expected_patterns": ["high", "re:functionally.?verified"],
+      "anti_patterns": ["every finding is high"],
+      "tags": ["severity"]
+    },
+    {
+      "id": "ua-012",
+      "prompt": "Which screen states do teams routinely forget to test?",
+      "scope": ["ui-audit.md"],
+      "expected_patterns": ["empty", "loading", "error", "offline OR permission OR partial OR overflow"],
+      "anti_patterns": [],
+      "tags": ["states"]
+    },
+    {
+      "id": "ua-013",
+      "prompt": "Force an empty state and an error state in Playwright to audit them",
+      "scope": ["ui-audit.md"],
+      "expected_patterns": ["page.route", "fulfill", "re:(status|500|503)", "re:(json|body)"],
+      "anti_patterns": [],
+      "tags": ["states", "driving"]
+    },
+    {
+      "id": "ua-014",
+      "prompt": "How do I know the UI sweep itself is accurate and not just producing noise?",
+      "expected_patterns": ["precision", "recall", "fixture OR fixtures", "re:(harness|eval)"],
+      "anti_patterns": [],
+      "tags": ["self-measurement"]
+    },
+    {
+      "id": "ua-015",
+      "prompt": "A real run produced a false positive from the sweep. What do I do with it?",
+      "expected_patterns": ["fixture", "re:(add|new).{0,25}(shape|case|fixture)", "precision"],
+      "anti_patterns": ["delete the rule"],
+      "tags": ["self-measurement", "feedback"]
+    },
+    {
+      "id": "ua-016",
+      "prompt": "Derive UI checks from the project's design system tokens",
+      "scope": ["ui-audit.md", "design-conformance.md"],
+      "expected_patterns": ["token OR tokens", "getComputedStyle", "re:(colour|color|spacing|font|radius)"],
+      "anti_patterns": [],
+      "tags": ["design-system"]
+    }
+  ]
+}

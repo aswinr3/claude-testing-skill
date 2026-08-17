@@ -64,7 +64,7 @@ If `PARENT` is `main` or `master`, branching isn't optional — it's the point. 
 ## What goes on the branch
 
 - Test files — specs, fixtures, factories, config changes.
-- `test-results/<date>/` — the result files and screenshots.
+- `test-results/<date>-<time>/` — the result files and screenshots.
 - Nothing else. If a source fix is needed to make a test pass, that's a **separate finding**, reported for a human. Fixing product code on a test branch mixes two decisions into one diff and hides the drift.
 
 **Do the result files get committed?** Default to yes on a test branch — the run record is the deliverable, and it's the reason the branch exists. Add `test-results/` to `.gitignore` only if the team explicitly doesn't want run history in git. Ask once, then follow the answer.

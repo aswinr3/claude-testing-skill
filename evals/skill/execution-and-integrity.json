@@ -1,0 +1,128 @@
+{
+  "capability": "execution-and-integrity",
+  "version": "1.0",
+  "evals": [
+    {
+      "id": "ei-001",
+      "prompt": "Write a Playwright test for a login page with email and password",
+      "scope": ["playwright.md"],
+      "expected_patterns": ["re:page\\.goto", "re:getBy(Role|Label|TestId)", "re:fill", "re:expect"],
+      "anti_patterns": ["waitForTimeout", "re:page\\.\\$\\("],
+      "tags": ["playwright"]
+    },
+    {
+      "id": "ei-002",
+      "prompt": "Reuse authentication across Playwright tests instead of logging in each time",
+      "scope": ["playwright.md"],
+      "expected_patterns": ["re:storageState", "re:(setup|dependencies|globalSetup)", "re:\\.auth|auth\\.json|json"],
+      "anti_patterns": [],
+      "tags": ["playwright", "auth"]
+    },
+    {
+      "id": "ei-003",
+      "prompt": "Mock /api/users in Playwright and simulate a 503",
+      "scope": ["playwright.md"],
+      "expected_patterns": ["re:page\\.route", "re:fulfill", "re:(503|500|status)"],
+      "anti_patterns": ["waitForTimeout"],
+      "tags": ["playwright", "mocking"]
+    },
+    {
+      "id": "ei-004",
+      "prompt": "Which Playwright locator should I prefer?",
+      "scope": ["playwright.md"],
+      "expected_patterns": ["re:getByRole", "re:(getByLabel|getByText|getByTestId)", "re:(priority|order|prefer)"],
+      "anti_patterns": ["xpath as the default"],
+      "tags": ["playwright", "locators"]
+    },
+    {
+      "id": "ei-005",
+      "prompt": "Test an API endpoint in Playwright without a browser",
+      "scope": ["playwright.md"],
+      "expected_patterns": ["re:\\{ request \\}|request\\.(post|get)", "re:expect", "re:status\\(\\)"],
+      "anti_patterns": [],
+      "tags": ["playwright", "api"]
+    },
+    {
+      "id": "ei-006",
+      "prompt": "How do I keep Playwright tests isolated and parallel-safe?",
+      "scope": ["playwright.md"],
+      "expected_patterns": ["re:(isolat|worker|parallel)", "re:(fixture|per-test|unique)"],
+      "anti_patterns": ["share one account across parallel tests"],
+      "tags": ["playwright", "isolation"]
+    },
+    {
+      "id": "ei-007",
+      "prompt": "Write Vitest unit tests for a pricing module",
+      "scope": ["unit-integration.md"],
+      "expected_patterns": ["re:(describe|test|it)\\(", "re:expect", "re:vi\\.(mock|fn|spyOn)"],
+      "anti_patterns": [],
+      "tags": ["unit"]
+    },
+    {
+      "id": "ei-008",
+      "prompt": "How do I keep unit tests deterministic?",
+      "scope": ["unit-integration.md"],
+      "expected_patterns": ["re:(clock|time|Date)", "re:(seed|random)", "re:(order|isolation|leftover|leak)"],
+      "anti_patterns": [],
+      "tags": ["unit", "determinism"]
+    },
+    {
+      "id": "ei-009",
+      "prompt": "How do I prove a new test actually works before trusting it?",
+      "expected_patterns": ["re:(fail on purpose|make it fail|see red|go red)", "re:(restore|back to green)"],
+      "anti_patterns": ["it passes so it works"],
+      "tags": ["falsifiability"]
+    },
+    {
+      "id": "ei-010",
+      "prompt": "Every accessibility check passes on every page. Believe it?",
+      "expected_patterns": ["re:fixture", "re:(empty DOM|blank page|before hydration|vacuous)", "re:(mutat|break).{0,20}(page)"],
+      "anti_patterns": [],
+      "tags": ["falsifiability", "fixture"]
+    },
+    {
+      "id": "ei-011",
+      "prompt": "A test blocks my merge. Can I skip it or loosen the matcher?",
+      "expected_patterns": ["re:(never|do not) weaken", "re:skip", "re:timeout"],
+      "anti_patterns": [],
+      "tags": ["integrity"]
+    },
+    {
+      "id": "ei-012",
+      "prompt": "The app contradicts the PRD. Which do I fix?",
+      "expected_patterns": ["re:drift", "re:(report|reported)", "re:(human|decision|never .{0,20}pick|do not resolve)"],
+      "anti_patterns": ["update the doc to match the code"],
+      "tags": ["integrity", "drift"]
+    },
+    {
+      "id": "ei-013",
+      "prompt": "A permission is enforced by hiding the button. Is that enough?",
+      "expected_patterns": ["re:hidden control", "re:(endpoint|API).{0,25}directly|directly", "re:server.?side", "re:deni(al|ed)"],
+      "anti_patterns": [],
+      "tags": ["integrity", "authz"]
+    },
+    {
+      "id": "ei-014",
+      "prompt": "Can I report the suite as passing without running it?",
+      "expected_patterns": ["re:(never|do not) report", "re:(paste|real failures|actual)", "re:flake"],
+      "anti_patterns": [],
+      "tags": ["integrity", "honesty"]
+    },
+    {
+      "id": "ei-015",
+      "prompt": "One test fails 1 in 10 runs. Triage it.",
+      "scope": ["review.md"],
+      "expected_patterns": ["re:(flaky|flake)", "re:(repeat-each|reproduce|quarantine|isolate)", "re:(root cause|cause)"],
+      "anti_patterns": ["add retries and move on"],
+      "tags": ["flake"]
+    },
+    {
+      "id": "ei-016",
+      "prompt": "Audit an existing suite. What do you look for?",
+      "scope": ["review.md"],
+      "expected_patterns": ["re:(no assertion|assert)", "re:(flak|flaky)", "re:(coverage|lie|false)"],
+      "anti_patterns": ["count the tests"],
+      "tags": ["review"]
+    }
+  ]
+}
