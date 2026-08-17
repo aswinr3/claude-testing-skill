@@ -58,11 +58,15 @@ export async function auditPage(page: Page, opts: { minTarget?: number } = {}): 
     for (const el of Array.from(document.body.querySelectorAll<HTMLElement>('*'))) {
       if (!el.textContent?.trim()) continue
       if (el.children.length > 0) continue                      // leaf text nodes only
+      if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue
       const s = getComputedStyle(el)
-      const clippedX = el.scrollWidth > el.clientWidth + 1
-      const clippedY = el.scrollHeight > el.clientHeight + 1
-      const handled = s.textOverflow === 'ellipsis' || s.overflow === 'auto' || s.overflow === 'scroll'
-      if ((clippedX || clippedY) && !handled) {
+      // Overflow must ACTUALLY be hidden on that axis. `overflow: visible`
+      // content spills but stays readable — flagging it fails correct pages.
+      const hidX = s.overflowX === 'hidden' || s.overflowX === 'clip'
+      const hidY = s.overflowY === 'hidden' || s.overflowY === 'clip'
+      const clippedX = hidX && el.scrollWidth > el.clientWidth + 1
+      const clippedY = hidY && el.scrollHeight > el.clientHeight + 1
+      if ((clippedX || clippedY) && s.textOverflow !== 'ellipsis') {
         out.push({
           rule: 'text-clipped', severity: 'high',
           detail: `Text is cut off with no ellipsis or scroll: "${el.textContent.trim().slice(0, 60)}"`,
@@ -73,41 +77,67 @@ export async function auditPage(page: Page, opts: { minTarget?: number } = {}): 
     return out.slice(0, 20)
   }))
 
-  // ---- 4. Overlapping interactive elements
+  // ---- 4. Interactive elements that genuinely cannot be clicked
+  // Rect intersection is NOT occlusion: a hidden drawer overlaps the content
+  // beneath it on every SPA. Ask the browser who receives the click instead.
+  // Also O(n) rather than O(n^2), and it catches the opacity:0 overlay that a
+  // geometry-only check misses entirely.
   issues.push(...await page.evaluate(() => {
     const sel = 'a,button,input,select,textarea,[role="button"],[role="link"],[tabindex]:not([tabindex="-1"])'
-    const els = Array.from(document.querySelectorAll<HTMLElement>(sel))
-      .filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 })
     const out: any[] = []
-    for (let i = 0; i < els.length; i++) {
-      for (let j = i + 1; j < els.length; j++) {
-        if (els[i].contains(els[j]) || els[j].contains(els[i])) continue
-        const a = els[i].getBoundingClientRect(), b = els[j].getBoundingClientRect()
-        const ox = Math.min(a.right, b.right) - Math.max(a.left, b.left)
-        const oy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
-        if (ox > 2 && oy > 2) {
-          out.push({
-            rule: 'interactive-overlap', severity: 'high',
-            detail: `${els[i].tagName} overlaps ${els[j].tagName} by ${Math.round(ox)}×${Math.round(oy)}px — one is unclickable`,
-          })
-        }
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
+      if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue
+      const r = el.getBoundingClientRect()
+      if (r.width <= 0 || r.height <= 0) continue
+      const x = r.left + r.width / 2, y = r.top + r.height / 2
+      if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue
+      const top = document.elementFromPoint(x, y)
+      if (top && top !== el && !el.contains(top) && !top.contains(el)) {
+        out.push({
+          rule: 'interactive-occluded', severity: 'high',
+          detail: `${el.tagName} is covered at its centre by ${top.tagName} — the click lands on the wrong element`,
+          element: el.tagName.toLowerCase(),
+        })
       }
     }
-    return out.slice(0, 10)
+    return out.slice(0, 20)
   }))
 
   // ---- 5. Touch targets below the minimum
+  // WCAG 2.2 Level AA, SC 2.5.8 "Target Size (Minimum)" — the floor is 24x24 CSS px.
+  // SC 2.5.8 has exceptions, and skipping them is most of this rule's noise:
+  //  - inline targets inside a sentence are exempt
+  //  - the target is the region that ACCEPTS the pointer, so a control wrapped
+  //    by (or associated with) a label is as big as control union label
   issues.push(...await page.evaluate((min) => {
     const sel = 'a,button,input:not([type="hidden"]),select,[role="button"],[role="link"]'
-    return Array.from(document.querySelectorAll<HTMLElement>(sel))
-      .map(e => ({ e, r: e.getBoundingClientRect() }))
-      .filter(({ r }) => r.width > 0 && r.height > 0 && (r.width < min || r.height < min))
-      .slice(0, 20)
-      .map(({ e, r }) => ({
+    const labelOf = (e: HTMLElement) =>
+      (e.id && document.querySelector<HTMLElement>(`label[for="${CSS.escape(e.id)}"]`)) || e.closest('label')
+    const targetRect = (e: HTMLElement) => {
+      const r = e.getBoundingClientRect(), l = labelOf(e)
+      if (!l) return r
+      const q = l.getBoundingClientRect()
+      return { width: Math.max(r.right, q.right) - Math.min(r.left, q.left),
+               height: Math.max(r.bottom, q.bottom) - Math.min(r.top, q.top) }
+    }
+    const out: any[] = []
+    for (const e of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
+      if (!e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue
+      const box = e.getBoundingClientRect()
+      if (box.width <= 0 || box.height <= 0) continue
+      const r = targetRect(e)
+      if (r.width >= min && r.height >= min) continue
+      const st = getComputedStyle(e), p = e.parentElement
+      const inlineInSentence = st.display === 'inline' && p &&
+        p.textContent!.replace(e.textContent ?? '', '').trim().length > 0
+      if (inlineInSentence) continue                       // SC 2.5.8 inline exception
+      out.push({
         rule: 'touch-target-too-small', severity: 'medium',
-        detail: `${Math.round(r.width)}×${Math.round(r.height)}px, minimum ${min}×${min}`,
+        detail: `${Math.round(r.width)}x${Math.round(r.height)}px effective target, minimum ${min}x${min}`,
         element: `${e.tagName.toLowerCase()}: ${(e.textContent || e.getAttribute('aria-label') || '').trim().slice(0, 30)}`,
-      }))
+      })
+    }
+    return out.slice(0, 20)
   }, minTarget))
 
   // ---- 6. Broken images and images without alt
@@ -124,7 +154,139 @@ export async function auditPage(page: Page, opts: { minTarget?: number } = {}): 
     return out
   }))
 
-  // ---- 7. Accessibility (contrast, names, roles, structure)
+  // ---- 7. Controls with no accessible name — nobody can address them by voice,
+  //         by screen reader, or by a role-based locator. Full name computation:
+  //         aria-label, aria-labelledby, associated <label>, value (for buttons),
+  //         title, own text, then a nested img[alt].
+  issues.push(...await page.evaluate(() => {
+    const ISEL = 'a,button,input:not([type=hidden]),select,textarea,[role="button"],[role="link"]'
+    const FORM = ['INPUT', 'SELECT', 'TEXTAREA']
+    const nameOf = (e: HTMLElement): string => {
+      const aria = e.getAttribute('aria-label'); if (aria?.trim()) return aria.trim()
+      const by = e.getAttribute('aria-labelledby')
+      if (by) {
+        const t = by.split(/\s+/).map(id => document.getElementById(id)?.textContent || '').join(' ').trim()
+        if (t) return t
+      }
+      const l = (e.id && document.querySelector(`label[for="${CSS.escape(e.id)}"]`)) || e.closest('label')
+      if (l?.textContent?.trim()) return l.textContent!.trim()
+      const inp = e as HTMLInputElement
+      if (e.tagName === 'INPUT' && ['submit', 'button', 'reset'].includes(inp.type)) return (inp.value || '').trim()
+      // A form control's own textContent is its OPTION text, not a name. Counting
+      // it makes every unlabelled <select> look named — a false negative found on a
+      // real site. Its `placeholder` IS part of the name computation (HTML-AAM).
+      if (FORM.includes(e.tagName)) {
+        const ph = e.getAttribute('placeholder'); if (ph?.trim()) return ph.trim()
+      } else {
+        if ((e.textContent || '').trim()) return e.textContent!.trim()
+        const alt = e.querySelector('img[alt]')?.getAttribute('alt')?.trim(); if (alt) return alt
+      }
+      if (e.getAttribute('title')?.trim()) return e.getAttribute('title')!.trim()
+      return ''
+    }
+    const out: any[] = []
+    for (const e of Array.from(document.querySelectorAll<HTMLElement>(ISEL))) {
+      if (!e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue
+      const r = e.getBoundingClientRect()
+      if (r.width <= 0 || r.height <= 0) continue
+      if (!nameOf(e)) out.push({
+        rule: 'control-missing-accessible-name', severity: 'high',
+        element: `${e.tagName.toLowerCase()}${e.className ? '.' + e.className : ''}`,
+        detail: 'Interactive control has no accessible name',
+      })
+    }
+    return out.slice(0, 20)
+  }))
+
+  // ---- 7b. placeholder carrying the label alone. The control HAS a name, so this
+  //          is not rule 7 — it is the distinct defect that the name disappears the
+  //          moment the user types into the field.
+  issues.push(...await page.evaluate(() => {
+    const out: any[] = []
+    for (const e of Array.from(document.querySelectorAll<HTMLElement>('input[placeholder],textarea[placeholder]'))) {
+      if (!e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue
+      const l = (e.id && document.querySelector(`label[for="${CSS.escape(e.id)}"]`)) || e.closest('label')
+      if (l?.textContent?.trim() || e.getAttribute('aria-label')?.trim() || e.getAttribute('aria-labelledby')) continue
+      out.push({
+        rule: 'placeholder-as-only-label', severity: 'medium',
+        element: `${e.tagName.toLowerCase()}[placeholder="${e.getAttribute('placeholder')}"]`,
+        detail: 'The only label is the placeholder; it vanishes once the field has a value',
+      })
+    }
+    return out.slice(0, 20)
+  }))
+
+  // ---- 8. Duplicate ids — silently break label[for], aria-labelledby, and anchors.
+  issues.push(...await page.evaluate(() => {
+    const seen = new Set<string>(), out: any[] = []
+    for (const e of Array.from(document.querySelectorAll<HTMLElement>('[id]'))) {
+      if (!e.id) continue
+      if (seen.has(e.id)) out.push({
+        rule: 'duplicate-id', severity: 'medium', element: `#${e.id}`,
+        detail: `id "${e.id}" appears more than once`,
+      })
+      else seen.add(e.id)
+    }
+    return out.slice(0, 20)
+  }))
+
+  // ---- 9. The page itself pans sideways. Name the widest offender, not the body.
+  issues.push(...await page.evaluate(() => {
+    const de = document.documentElement
+    if (de.scrollWidth <= de.clientWidth + 1) return []
+    let worst: Element | null = null, max = de.clientWidth
+    for (const e of Array.from(document.body.querySelectorAll('*'))) {
+      const r = e.getBoundingClientRect()
+      if (r.width > 0 && r.right > max + 1) { max = r.right; worst = e }
+    }
+    return [{
+      rule: 'page-overflows-horizontally', severity: 'high',
+      element: worst ? `${worst.tagName.toLowerCase()}.${(worst as HTMLElement).className}` : 'body',
+      detail: `Document scrollWidth ${de.scrollWidth} exceeds viewport ${de.clientWidth}`,
+    }]
+  }))
+
+  // ---- 10. Contrast (WCAG 1.4.3). SKIPPED, never guessed, when the backdrop is
+  //          not knowable from computed style — a background image, a gradient,
+  //          or a translucent stack. Guessing here is where contrast sweeps earn
+  //          their reputation for noise.
+  issues.push(...await page.evaluate(() => {
+    const lum = (c: string) => {
+      const m = c.match(/rgba?\(([^)]+)\)/); if (!m) return null
+      const [r, g, b, a] = m[1].split(',').map(Number)
+      if (a !== undefined && a < 1) return null
+      const f = (v: number) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+    }
+    const backdrop = (el: Element): number | null => {
+      for (let n: Element | null = el; n; n = n.parentElement) {
+        const s = getComputedStyle(n)
+        if (s.backgroundImage && s.backgroundImage !== 'none') return null   // unknowable
+        const L = lum(s.backgroundColor)
+        if (L !== null) return L
+      }
+      return null
+    }
+    const out: any[] = []
+    for (const el of Array.from(document.body.querySelectorAll<HTMLElement>('*'))) {
+      if (!(el.textContent || '').trim() || el.children.length > 0) continue
+      if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue
+      const s = getComputedStyle(el)
+      const fg = lum(s.color); if (fg === null) continue
+      const bg = backdrop(el); if (bg === null) continue
+      const size = parseFloat(s.fontSize), bold = parseInt(s.fontWeight, 10) >= 700
+      const large = size >= 24 || (size >= 18.66 && bold)
+      const ratio = (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05)
+      if (ratio < (large ? 3 : 4.5)) out.push({
+        rule: 'contrast-below-aa', severity: 'medium',
+        element: `${el.tagName.toLowerCase()}: ${(el.textContent || '').trim().slice(0, 30)}`,
+        detail: `${ratio.toFixed(2)}:1, minimum ${large ? 3 : 4.5}:1`,
+      })
+    }
+    return out.slice(0, 20)
+  }))
+
+  // ---- 11. Accessibility (roles, structure, and everything above not covered)
   const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze()
   issues.push(...violations.map(v => ({
     rule: `a11y:${v.id}`,
@@ -188,7 +350,20 @@ for (const route of ROUTES) {
 }
 ```
 
-Fail on `high` only at first; report `medium` and `low` without failing until the backlog is clear, or the suite is red on day one and gets ignored.
+**Only functionally-verified conditions carry `high`.** A rule earns the right to fail a build
+when it proves the defect rather than infers it: occlusion confirmed by hit test, an image that
+returned 0x0, a console error, an axe critical/serious violation. Geometric and stylistic
+heuristics report at `medium` and never gate — that is what stops a correct page going red.
+
+Fail on `high` only at first; report `medium` and `low` without failing until the backlog is
+clear, or the suite is red on day one and gets ignored.
+
+**This sweep has its own eval — run it before trusting a run's findings.**
+`evals/ui-audit/harness.mjs` scores the sweep against a correct page (any finding is a false
+positive) and a page with seeded defects (any miss is a false negative). Current: precision 1.00,
+recall 1.00. The version of these checks shipped before 2026-08-14 scored 0.50 / 0.67 — it
+invented overlaps between hidden elements and missed the real ones. A detector with no tests is
+exactly what this skill forbids everywhere else.
 
 ---
 

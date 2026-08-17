@@ -4,14 +4,16 @@ Cases live in Google Sheets. This defines the column contract, how to emit rows 
 
 ## Column contract
 
-One row per case. 20 columns, `A`–`T`. Header row exactly as below.
+One row per case. 22 columns, `A`–`V`. Header row exactly as below.
+**`Module (Slice)` is column `A`** — the register groups and filters by the thing a
+team owns, so it leads. `SKILL.md` and `results.md` state the same rule.
 
 | Col | Header | Content | Rules |
 |---|---|---|---|
-| A | `Case ID` | `TC-0001` | Zero-padded, never reused, never renumbered |
-| B | `Requirement ID` | `PRD:BR-03` | **Namespaced** (see `document-map.md`). Multiple separated by `; ` |
-| C | `Source` | `PRD §9` / `SLICE-04 Rules` | Document + section, so a reviewer can find it |
-| D | `Module` | `Auth` / `Checkout` | Feature area; used to filter and to split result files |
+| A | `Module (Slice)` | `SLICE-09 Order Management` | Feature area; **first column** so the sheet groups by it |
+| B | `Case ID` | `TC-0001` | Zero-padded, never reused, never renumbered |
+| C | `Requirement ID` | `PRD:BR-03` | **Namespaced** (see `document-map.md`). Multiple separated by `; ` |
+| D | `Source` | `PRD §9` / `SLICE-04 Rules` | Document + section, so a reviewer can find it |
 | E | `Test Type` | `Functional` | One of: Unit, Integration, Mock, Smoke, Sanity, Functional, Regression, Exploratory, Non-Functional |
 | F | `Level` | `E2E` | One of: Unit, API, E2E, Manual |
 | G | `Title` | `Rejects reset for unregistered email without leaking existence` | Behaviour + condition. Never "test login" |
@@ -27,9 +29,9 @@ One row per case. 20 columns, `A`–`T`. Header row exactly as below.
 | Q | `Status` | `Not run` | Not run / Pass / Fail / Blocked / Skipped |
 | R | `Last Run` | `2026-08-14` | ISO date |
 | S | `Defect Ref` | `BUG-112` | `—` when none |
-| T | `Notes` | `Provisional — pending PM:PM-01` | Flag provisional cases here |
-| U | `Evidence` | `=HYPERLINK("...", "TC-0142 ▸ text-clipped")` | Screenshot / trace link. `—` when none. See `evidence.md` |
-| V | `Evidence Path` | `test-results/2026-08-14-1432/screenshots/TC-0142__text-clipped__375x812.png` | Offline record — survives dead links |
+| T | `Evidence` | `=HYPERLINK("...", "TC-0142 ▸ text-clipped")` | Screenshot / trace link. `—` when none. See `evidence.md` |
+| U | `Evidence Path` | `test-results/2026-08-14-1432/screenshots/TC-0142__text-clipped__375x812.png` | Offline record — survives dead links |
+| V | `Notes` | `Provisional — pending PM:PM-01` | Flag provisional cases here. Last, so `Q`–`U` paste as one block |
 
 ### Rules that keep the sheet usable
 
@@ -131,7 +133,7 @@ Data Model, Architecture, Glossary, ADRs, and per-feature Vertical Slice specs.
 ## Output format
 Output ONE TSV block, tab-separated, with this exact header row:
 
-Case ID	Requirement ID	Source	Module	Test Type	Level	Title	Preconditions	Test Data	Steps	Expected Result	Must Not Happen	Technique	Priority	Automated	Automation Ref	Status	Last Run	Defect Ref	Notes	Evidence	Evidence Path
+Module (Slice)	Case ID	Requirement ID	Source	Test Type	Level	Title	Preconditions	Test Data	Steps	Expected Result	Must Not Happen	Technique	Priority	Automated	Automation Ref	Status	Last Run	Defect Ref	Evidence	Evidence Path	Notes
 
 Formatting rules — violating these corrupts the paste:
 - Separate columns with a REAL TAB character. Never a comma.

@@ -120,7 +120,7 @@ I can't install any of these myself — MCP setup needs `claude mcp add` or `/mc
 5. playwright test → the actual run: parallel, deterministic, in CI
 6. Playwright MCP → triage each failure interactively; highlight + screenshot
                     the offending element for evidence
-7. Result files  → test-results/<date>/ per test type   (results.md)
+7. Result files  → test-results/<date>-<time>/ per test type   (results.md)
 8. TSV → Sheets  → statuses and evidence links           (test-cases-sheet.md)
 ```
 

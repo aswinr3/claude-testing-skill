@@ -1,0 +1,289 @@
+{
+  "capability": "results-and-evidence",
+  "version": "1.0",
+  "evals": [
+    {
+      "id": "re-001",
+      "prompt": "What files must a test run produce at the end?",
+      "scope": [
+        "results.md"
+      ],
+      "expected_patterns": [
+        "re:00-SUMMARY",
+        "re:by-type",
+        "re:defects",
+        "re:(conformance-matrix|matrix)",
+        "re:cases\\.tsv"
+      ],
+      "anti_patterns": [
+        "a summary message is enough"
+      ],
+      "tags": [
+        "files"
+      ]
+    },
+    {
+      "id": "re-002",
+      "prompt": "Three of the nine test types did not run. Do I write files for them?",
+      "scope": [
+        "results.md"
+      ],
+      "expected_patterns": [
+        "re:Not run",
+        "re:(including|even|also)",
+        "re:(missing|reads as|nothing wrong)"
+      ],
+      "anti_patterns": [
+        "omit them"
+      ],
+      "tags": [
+        "absence"
+      ]
+    },
+    {
+      "id": "re-003",
+      "prompt": "Should the run record be organised by test type or by feature?",
+      "scope": [
+        "results.md"
+      ],
+      "expected_patterns": [
+        "re:(module|slice)",
+        "re:(own|team|feature)",
+        "re:(first column|group)"
+      ],
+      "anti_patterns": [],
+      "tags": [
+        "organisation"
+      ]
+    },
+    {
+      "id": "re-004",
+      "prompt": "Every case I wrote for checkout passes. Is checkout a pass?",
+      "scope": [
+        "results.md"
+      ],
+      "expected_patterns": [
+        "re:[Rr]equired.?evidence",
+        "re:(its own|measured against|owed)"
+      ],
+      "anti_patterns": [],
+      "tags": [
+        "verdict"
+      ]
+    },
+    {
+      "id": "re-005",
+      "prompt": "A slice was not tested at all. Does it get a file?",
+      "scope": [
+        "results.md"
+      ],
+      "expected_patterns": [
+        "re:(including|even).{0,40}(not tested|no cases|not run)|not tested",
+        "re:(module|slice)"
+      ],
+      "anti_patterns": [],
+      "tags": [
+        "absence"
+      ]
+    },
+    {
+      "id": "re-006",
+      "prompt": "Capture evidence for a confirmed bug",
+      "scope": [
+        "evidence.md"
+      ],
+      "expected_patterns": [
+        "re:screenshot",
+        "re:(moment of failure|at failure|on failure)",
+        "re:(trace|highlight)"
+      ],
+      "anti_patterns": [
+        "describe the bug in text only"
+      ],
+      "tags": [
+        "capture"
+      ]
+    },
+    {
+      "id": "re-007",
+      "prompt": "Link bug screenshots into a Google Sheet",
+      "scope": [
+        "evidence.md"
+      ],
+      "expected_patterns": [
+        "re:HYPERLINK",
+        "re:IMAGE",
+        "re:(Drive|public|VALUE)"
+      ],
+      "anti_patterns": [],
+      "tags": [
+        "sheets"
+      ]
+    },
+    {
+      "id": "re-008",
+      "prompt": "How should evidence files be named to stay traceable?",
+      "scope": [
+        "evidence.md",
+        "preflight.md"
+      ],
+      "expected_patterns": [
+        "re:TC-",
+        "re:png",
+        "re:(rule|WxH|viewport|width)"
+      ],
+      "anti_patterns": [],
+      "tags": [
+        "naming"
+      ]
+    },
+    {
+      "id": "re-009",
+      "prompt": "Where does the run's evidence get written, and what if that is not configured?",
+      "scope": [
+        "evidence.md"
+      ],
+      "expected_patterns": [
+        "re:RUN_DIR",
+        "re:(throw|must|required|unset)"
+      ],
+      "anti_patterns": [
+        "default to test-results/latest"
+      ],
+      "tags": [
+        "run-dir"
+      ]
+    },
+    {
+      "id": "re-010",
+      "prompt": "What belongs in the defects file for one bug?",
+      "scope": [
+        "evidence.md",
+        "results.md"
+      ],
+      "expected_patterns": [
+        "re:(repro|steps)",
+        "re:(expected|actual)",
+        "re:(severity|evidence|screenshot)"
+      ],
+      "anti_patterns": [],
+      "tags": [
+        "defects"
+      ]
+    },
+    {
+      "id": "re-011",
+      "prompt": "Write the summary for a run that failed",
+      "scope": [
+        "results.md"
+      ],
+      "expected_patterns": [
+        "re:(verdict|FAIL)",
+        "re:(blocking|blocker)",
+        "re:[Nn]ot covered"
+      ],
+      "anti_patterns": [],
+      "tags": [
+        "summary"
+      ]
+    },
+    {
+      "id": "re-012",
+      "prompt": "How do results get back into the case register?",
+      "scope": [
+        "results.md",
+        "test-cases-sheet.md"
+      ],
+      "expected_patterns": [
+        "re:cases\\.tsv",
+        "re:(Case ID|reconcil)",
+        "re:(Status|Last Run)"
+      ],
+      "anti_patterns": [],
+      "tags": [
+        "round-trip"
+      ]
+    },
+    {
+      "id": "re-013",
+      "prompt": "Should the run record be committed or gitignored?",
+      "expected_patterns": [
+        "re:(commit|deliverable|history)",
+        "re:(branch|test branch)"
+      ],
+      "anti_patterns": [],
+      "tags": [
+        "vcs"
+      ]
+    },
+    {
+      "id": "re-014",
+      "prompt": "A run's screenshots were deleted by the next run. How is that prevented?",
+      "scope": [
+        "preflight.md",
+        "evidence.md"
+      ],
+      "expected_patterns": [
+        "re:(per-run|namespac|RUN_ID)",
+        "re:(outputDir|artifact)",
+        "re:(wipe|delete|overwrite)"
+      ],
+      "anti_patterns": [],
+      "tags": [
+        "artifact-safety"
+      ]
+    },
+    {
+      "id": "re-015",
+      "prompt": "A bug only appears after four actions in sequence. A screenshot at the end is not enough. What do you capture?",
+      "scope": [
+        "evidence.md"
+      ],
+      "expected_patterns": [
+        "re:(per.?step|each (action|step)|step\\()",
+        "re:(trail|sequence|repro)",
+        "re:(trace|video)"
+      ],
+      "anti_patterns": [
+        "a failure screenshot is enough"
+      ],
+      "tags": [
+        "sequence"
+      ]
+    },
+    {
+      "id": "re-016",
+      "prompt": "I have a four-step repro. How do I know all four steps are needed?",
+      "scope": [
+        "evidence.md"
+      ],
+      "expected_patterns": [
+        "re:(bisect|drop|minimal)",
+        "re:minimal (failing )?sequence|minimal",
+        "re:(re-?run|repeat)"
+      ],
+      "anti_patterns": [],
+      "tags": [
+        "sequence",
+        "minimisation"
+      ]
+    },
+    {
+      "id": "re-017",
+      "prompt": "The bug needs 3 items in the cart but not specific ones, and only in one order. How do I report that?",
+      "scope": [
+        "evidence.md"
+      ],
+      "expected_patterns": [
+        "re:(order.?dependent|ordering)",
+        "re:(accumulat|threshold|boundary)",
+        "re:(state|both orders|n items|2 items)"
+      ],
+      "anti_patterns": [],
+      "tags": [
+        "sequence",
+        "classification"
+      ]
+    }
+  ]
+}

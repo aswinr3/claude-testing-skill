@@ -80,8 +80,12 @@ export async function captureIssue(
 
   await testInfo.attach(`evidence-${issue.caseId}`, { path: absPath, contentType: 'image/png' })
 
-  // Mirror into the run folder alongside the result files
-  const runDir = process.env.RUN_DIR ?? path.join('test-results', 'latest')
+  // Mirror into the run folder alongside the result files.
+  // No default: `test-results/latest` is a symlink, and an un-moved Playwright
+  // outputDir wipes `test-results/` before every run — defaulting there means
+  // the evidence is deleted by the next run. Fail loudly instead.
+  const runDir = process.env.RUN_DIR
+  if (!runDir) throw new Error('RUN_DIR must point at this run\'s folder, e.g. test-results/2026-08-14-1432')
   const dest = path.join(runDir, 'screenshots', file)
   await fs.mkdir(path.dirname(dest), { recursive: true })
   await fs.copyFile(absPath, dest)
@@ -105,29 +109,205 @@ for (const [i, issue] of issues.entries()) {
 }
 ```
 
+## 2b. Bugs that only appear after a sequence of actions
+
+A single failure screenshot is close to useless for a bug that needs four steps to reach. It
+shows the wreckage, not the route. **Nobody can reproduce a state they cannot see the path
+to**, and "Steps" typed from memory after the fact is the field that most often turns out to
+be wrong.
+
+Wrap each action in `step()`. It captures a screenshot per action, records the sequence, and
+emits the repro from what the test *actually did* rather than from what you remember it doing.
+
+```ts
+// e2e/evidence.ts (continued)
+type Trail = { n: number; label: string; file: string; url: string; ms: number }
+
+/**
+ * `module` groups the case folder the same way the run record and the case
+ * register group it, so a team opens one directory and sees only its own work.
+ */
+export function sequence(
+  page: Page, testInfo: TestInfo, opts: { module: string; caseId: string },
+) {
+  const { module: mod, caseId } = opts
+  const runDir = process.env.RUN_DIR
+  if (!runDir) throw new Error('RUN_DIR must point at this run\'s folder')
+  const dir = path.join(runDir, 'screenshots', 'sequences', mod, caseId)
+
+  const trail: Trail[] = []
+  const t0 = Date.now()
+  const vpTag = () => { const v = page.viewportSize(); return v ? `${v.width}x${v.height}` : 'novp' }
+  const slug = (s: string) => s.replace(/[^a-z0-9]+/gi, '-').slice(0, 40)
+
+  const shoot = async (stem: string) => {
+    const file = `${caseId}__${stem}__${vpTag()}.png`
+    await fs.mkdir(dir, { recursive: true })
+    await page.screenshot({ path: path.join(dir, file) })
+    return file
+  }
+
+  const step = async (label: string, fn: () => Promise<void>) => {
+    await test.step(label, fn)
+    const n = trail.length + 1
+    // Zero-padded so step 10 sorts after step 9, not after step 1.
+    const file = await shoot(`s${String(n).padStart(2, '0')}__${slug(label)}`)
+    trail.push({ n, label, file, url: page.url(), ms: Date.now() - t0 })
+  }
+
+  /** The outcome frame. `__FAIL__`, never `sNN` — it is not an action. */
+  const fail = (reason: string) => shoot(`FAIL__${slug(reason)}`)
+
+  const repro = () => trail.map(s =>
+    `${s.n}. ${s.label} — \`${s.url}\` (+${s.ms}ms) → \`${s.file}\``).join('\n')
+
+  /** Everything for this case, in this case's folder. Zip it and the story is complete. */
+  const write = async (extra: Record<string, string> = {}) => {
+    await fs.mkdir(dir, { recursive: true })
+    await fs.writeFile(path.join(dir, 'repro.md'),
+      `# ${caseId} — ${mod}\n\n## Steps (derived from the run)\n\n${repro()}\n` +
+      Object.entries(extra).map(([k, v]) => `\n## ${k}\n\n${v}\n`).join(''))
+    for (const [name, src] of Object.entries({
+      'video.webm': testInfo.attachments.find(a => a.name === 'video')?.path,
+      'trace.zip': testInfo.attachments.find(a => a.name === 'trace')?.path,
+    })) if (src) await fs.copyFile(src, path.join(dir, name)).catch(() => {})
+    return dir
+  }
+
+  return { step, fail, trail, repro, write, dir }
+}
+```
+
+Used:
+
+```ts
+test('TC-0301 signup shows a success toast then the app crashes', async ({ page }, testInfo) => {
+  const { step, fail, repro, write } = sequence(page, testInfo, {
+    module: 'MOD-03-checkout', caseId: 'TC-0301',
+  })
+
+  await step('open the signup form',                    async () => { /* … */ })
+  await step('enter full name and work email',          async () => { /* … */ })
+  await step('choose the Pro plan',                     async () => { /* … */ })
+  await step('submit and wait for the popup',           async () => { /* … */ })
+  await step('observe the app 1s later',                async () => { /* … */ })
+
+  const root = (await page.locator('#app').innerHTML()).trim()
+  if (root === '') await fail('app-root-emptied')      // the outcome frame
+  await write({ Runtime: '```json\n' + JSON.stringify(runtime, null, 2) + '\n```' })
+
+  expect(root, 'the app root must not be torn down after a successful submit').not.toBe('')
+})
+```
+
+Produces one self-contained folder for this case:
+
+```
+screenshots/sequences/MOD-03-checkout/TC-0301/
+├── TC-0301__s01__open-the-signup-form__1280x720.png
+├── TC-0301__s02__enter-full-name-and-work-email__1280x720.png
+├── TC-0301__s03__choose-the-Pro-plan__1280x720.png
+├── TC-0301__s04__submit-and-wait-for-the-popup__1280x720.png
+├── TC-0301__s05__observe-the-app-1s-later__1280x720.png
+├── TC-0301__FAIL__app-root-emptied__1280x720.png
+├── repro.md
+├── video.webm
+└── trace.zip
+```
+
+### Which action actually caused it
+
+With a per-step trail you can answer this instead of guessing. **Bisect the sequence** — drop
+one step at a time and re-run:
+
+```bash
+# does it still fail without step 3?
+STEPS=1,2,4 npx playwright test -g "TC-0301"
+```
+
+Gate each step on the variable, then report the **minimal failing sequence**, not the sequence
+you happened to write. A four-step repro that is really a two-step repro sends the developer
+looking in the wrong place.
+
+Turn the artefacts off while bisecting or repeating — a `--repeat-each=10` run writes a full
+trace and video **per attempt**, which is how a 7-file run record becomes a 99-file one:
+
+```bash
+npx playwright test -g "TC-0301" --repeat-each=10 --trace=off --video=off
+```
+
+### Ordering matters, and so does state
+
+Two failure modes hide behind "it only breaks after a few actions":
+
+- **Order-dependent** — the same actions in a different order pass. Say so explicitly, and
+  give both orders. This is usually a state-machine or race defect.
+- **Accumulation-dependent** — it needs *n* items, not those specific items. Find the
+  threshold (2 items pass, 3 fail) and report the boundary. That converts a vague repro into
+  a boundary-value case.
+
+Never report a sequence bug without stating which of the two it is. Determinism still applies:
+if the sequence only fails sometimes, it is a flake until proven otherwise — `--repeat-each=10`
+before it goes in `defects.md`.
+
 ## 3. Naming and layout
 
-Filenames must be traceable back to a case without opening them:
+Two kinds of evidence, two shapes. Mixing them is what makes a run record unreadable at scale:
+one flat folder holding 200 single-shot bugs *and* 1,000 sequence frames is a folder nobody
+opens twice.
+
+### Single-shot evidence — one file per bug, flat
+
+A UI-audit finding or a one-assertion failure needs exactly one image. These stay flat,
+because there is nothing to group:
 
 ```
-TC-0142__text-clipped__375x812.png
-TC-0142__text-clipped__1280x800.png
+screenshots/single/
+├── TC-0142__text-clipped__375x812.png
+├── TC-0142__text-clipped__1280x800.png
+└── TC-0155__interactive-occluded__1280x800.png
 ```
 
+### Sequence evidence — one folder per case, grouped by module
+
+A bug that takes four actions to reach produces a *set* of files that only make sense
+together. Give the set its own folder, and group those folders **by module** — the same axis
+the case register and the result files already use, so a team can open the one directory they
+own:
+
 ```
-test-results/2026-08-14-1432/
-├── 00-SUMMARY.md
-├── 06-functional.md
-├── defects.md
-├── cases.tsv
-└── screenshots/
-    ├── TC-0142__text-clipped__375x812.png
-    ├── TC-0155__interactive-overlap__1280x800.png
-    └── traces/
-        └── TC-0142.zip
+screenshots/sequences/
+├── MOD-03-checkout/
+│   ├── TC-0301/
+│   │   ├── TC-0301__s01__open-the-signup-form__1280x720.png
+│   │   ├── TC-0301__s02__enter-full-name-and-work-email__1280x720.png
+│   │   ├── TC-0301__s03__choose-the-Pro-plan__1280x720.png
+│   │   ├── TC-0301__s04__submit-and-wait-for-the-popup__1280x720.png
+│   │   ├── TC-0301__s05__observe-the-app-1s-later__1280x720.png
+│   │   ├── TC-0301__FAIL__app-root-emptied__1280x720.png
+│   │   ├── repro.md            ← generated from the run
+│   │   ├── video.webm
+│   │   └── trace.zip
+│   └── TC-0307/…
+└── MOD-05-payments/
+    └── TC-0412/…
 ```
 
-Screenshots live **with** the run they came from. A screenshots folder detached from its run is unusable within a week — nobody knows which build it shows.
+Rules that make this hold up across hundreds of cases:
+
+- **The folder carries the identity; the filenames repeat it anyway.** Redundant inside the
+  tree, essential outside it — evidence gets dragged into Slack and attached to tickets
+  constantly, and `s01__open-the-form.png` on its own means nothing.
+- **`sNN` is zero-padded** so the sequence sorts correctly past step 9.
+- **The failure frame is `__FAIL__`, not `sNN`.** It is the outcome, not an action, and it
+  must sort last and read differently at a glance.
+- **Everything for one case lives in one folder** — frames, repro, video, trace. Zipping
+  `TC-0301/` gives a developer the complete story with nothing missing.
+- **Module folders match the module names in `modules/`** and the `Module (Slice)` column in
+  the register. One vocabulary, three places.
+
+Screenshots live **with** the run they came from. A screenshots folder detached from its run
+is unusable within a week — nobody knows which build it shows.
 
 ## 4. Uploading to Drive
 
@@ -192,8 +372,13 @@ The sheet gets one link; the defect file gets the full story:
 - **Requirement:** DS:§3 (typography), UX:Flow-04 screen requirements
 - **Severity:** High — the user cannot read the amount they are agreeing to pay
 - **Environment:** staging, commit `a91f2c3`, Chromium 128, 375×812
-- **Steps:** 1. Log in as user_verified@test.local → 2. Add SKU-9 to cart →
-  3. Open /checkout
+- **Steps (derived from the run, not from memory):**
+  1. Log in as user_verified@test.local — `/login` (+0ms) → `TC-0142__s01__…png`
+  2. Add SKU-9 and SKU-14 to the cart — `/products` (+1.2s) → `TC-0142__s02__…png`
+  3. Apply discount code SAVE20 — `/cart` (+2.4s) → `TC-0142__s03__…png`
+  4. Open /checkout — `/checkout` (+3.1s) → `TC-0142__s04__…png`
+- **Minimal sequence:** steps 2 and 4 only — step 3 is not required to reproduce
+- **Dependency:** accumulation — passes with 1 item, fails from 2 upward
 - **Expected:** Full total visible, e.g. "₹1,24,999.00"
 - **Actual:** Renders "₹1,24,9…" — clipped, no ellipsis affordance, no scroll
 - **Cause:** `.order-total` has `width: 120px` fixed; DESIGN_SYSTEM §4 requires

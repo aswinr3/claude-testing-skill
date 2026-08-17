@@ -11,8 +11,10 @@ Platform-level verification runs on **Playwright**. Unit and integration run on 
 
 | Job | Load |
 |---|---|
+| **Preflight — run this before anything else; it exits non-zero when the run would break** | `references/preflight.md` |
 | **Branch to work on — named from the parent branch** | `references/branching.md` |
 | **What you can reach — source, hosted URL, or both — and what you may claim** | `references/targets.md` |
+| **Read the project's documents deeply — PRD, vertical slices, permissions, flows — and reconcile them** | `references/document-intelligence.md` |
 | Which document holds what, and its ID scheme *(when the standard template set is in use)* | `references/document-map.md` |
 | Extract requirements, derive cases, build the traceability matrix | `references/documents.md` |
 | Which test type applies, in what order, entry/exit criteria | `references/test-types.md` |
@@ -69,9 +71,10 @@ The one thing that always justifies stopping mid-run: an action that could damag
 
 Never skip. Report the result in a few lines before doing anything else.
 
+0. **Run the preflight.** `eval "$(bash scripts/preflight.sh <repo>)" || exit 1`. It pins the repository (nested repos silently capture bare `git` commands), refuses the default branch and a detached HEAD, snapshots pre-existing changes so a run commit cannot sweep them in, namespaces the run directory and artefact directory, and fails when `outputDir` would wipe the run record. Everything after this uses `git -C "$RUN_REPO"`. `preflight.md`.
 1. **Branch first.** Create `<parent>-test-<slug>` from the current branch and switch to it **before writing any file**. Nesting under the parent with a slash (`main/tests`) is impossible in git — see `branching.md` for why, plus the detached-HEAD and dirty-tree guards. Never run test work directly on `main`/`master`.
 2. **Establish the target mode, and gather every dependency before testing.** Is the **source** present? Is a **running instance** reachable — locally, or as a hosted URL? Which environment is that URL? Do you have **one account per role** (a merchant login does not cover the admin panel), and is the data **disposable**? These decide which of the nine types are even possible. Batch all of it into one request, then **wait** — a missing critical dependency (per-role credentials, disposable-data status, the spec) gates the run: ask and wait unless the user has explicitly said to proceed without it. See "Gather every dependency FIRST". **Against production, run read-only checks only** — no load, no exploratory, no destructive flows, no test-data creation — and confirm you're authorised to test any URL that isn't obviously the user's own. `targets.md`.
-3. **Inventory the documents.** Check whether the project uses the standard template set — PRD, slice specs, permissions matrix, workflows, user flows, design system, data model, architecture, glossary, ADRs. **If it does**, `document-map.md` gives the ID scheme and per-document extraction. **If it doesn't**, fall back to generic discovery in `documents.md` §1 and derive an ID scheme from whatever the project uses. Either way, list each document with path and version and read them **completely** — a requirement in a section you skipped becomes a "not specified" you'll be wrong about. Documents may also live in git history rather than the working tree; check `git ls-tree -r --name-only HEAD` before concluding a document is missing.
+3. **Read the documents deeply, then reconcile them.** This is a five-pass job, not a skim: inventory and pin every document (filesystem *and* git history), read each one **end to end**, extract into a **requirement index** with namespaced IDs anchored to a line or matrix cell, reconcile across documents for contradictions/duplications/orphans/silence, and finish with a coverage self-check. `document-intelligence.md` is the method; it is what makes "not specified" a credible claim. Check whether the project uses the standard template set — PRD, slice specs, permissions matrix, workflows, user flows, design system, data model, architecture, glossary, ADRs. **If it does**, `document-map.md` gives the ID scheme and per-document extraction. **If it doesn't**, fall back to generic discovery in `documents.md` §1 and derive an ID scheme from whatever the project uses. Either way, list each document with path and version and read them **completely** — a requirement in a section you skipped becomes a "not specified" you'll be wrong about. Documents may also live in git history rather than the working tree; check `git ls-tree -r --name-only HEAD` before concluding a document is missing.
 4. **Detect the runners.** `package.json` scripts and deps, plus `playwright.config.*`, `vitest.config.*`, `jest.config.*`. Note which directories each owns.
 5. **Get the platform running**, or pin the deployment. Dev command, base URL, seeded accounts, env. With a hosted target, record the build/commit identifier — without one, every later drift finding is ambiguous between "wrong code" and "stale deployment".
 6. **Check the design file.** Is `design.html` present and non-empty? If it's a stub, say so and skip design-file comparison rather than silently degrading to a spec-only check.
@@ -131,7 +134,7 @@ Column contract and the Gemini prompt: `test-cases-sheet.md`.
 
 ## Every run ends with result files
 
-**This is required, not optional.** Write to `test-results/<date>/` at the project root:
+**This is required, not optional.** Write to `test-results/<date>-<time>/` at the project root:
 
 - `00-SUMMARY.md` — verdict, **module table first** where the project has slices, then the per-type table, blocking items, and a **Not covered** section.
 - `modules/SLICE-NN-<name>.md` — **one file per vertical slice, including slices that were not tested at all.** This is the primary view: teams own features, not test types, so "is checkout releasable?" must not require grepping nine type files. Each states routes exercised, status, defects, results against the slice's four acceptance examples, and — the part everyone skips — which of its **Required evidence** is still owed.

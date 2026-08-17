@@ -1,0 +1,133 @@
+{
+  "capability": "document-intelligence",
+  "version": "1.0",
+  "_note": "Deep comprehension of a project's own documents — PRD, vertical slice specs, permissions matrix, workflows, user flows, design system, data model, ADRs — and reconciliation across them.",
+  "evals": [
+    {
+      "id": "di-001",
+      "prompt": "Read this project's documents before testing. What is the reading order and what does each yield?",
+      "scope": ["document-intelligence.md", "document-map.md"],
+      "expected_patterns": ["PRD", "re:(slice|vertical slice)", "re:permissions matrix", "re:(design system|user flow|workflow)", "re:(order|first|then)"],
+      "anti_patterns": ["skim the PRD"],
+      "tags": ["reading-order"]
+    },
+    {
+      "id": "di-002",
+      "prompt": "What is a vertical slice spec and what must I extract from one?",
+      "scope": ["document-intelligence.md", "document-map.md"],
+      "expected_patterns": ["re:(slice|vertical)", "re:acceptance", "re:(required evidence|evidence)", "re:(route|screen|endpoint)"],
+      "anti_patterns": [],
+      "tags": ["slices"]
+    },
+    {
+      "id": "di-003",
+      "prompt": "Build a machine-readable index of every requirement in these documents",
+      "scope": ["document-intelligence.md"],
+      "expected_patterns": ["re:(index|inventory|register)", "re:(ID|identifier)", "re:(source|document|file).{0,20}(line|section|anchor)", "re:(tsv|json|table)"],
+      "anti_patterns": [],
+      "tags": ["extraction"]
+    },
+    {
+      "id": "di-004",
+      "prompt": "The PRD and a slice spec disagree about the same rule. What do I do?",
+      "scope": ["document-intelligence.md", "documents.md"],
+      "expected_patterns": ["re:conflict", "re:(report|record|surface)", "re:(precedence|authority|which document|human|decision)"],
+      "anti_patterns": ["pick the newer document"],
+      "tags": ["reconciliation"]
+    },
+    {
+      "id": "di-005",
+      "prompt": "The documents reuse the same ID prefix for two different things. How do I keep traceability intact?",
+      "scope": ["document-intelligence.md", "document-map.md"],
+      "expected_patterns": ["re:namespac", "re:(PRD:|SLICE-|prefix)", "re:(collide|collision|ambiguous|corrupt)"],
+      "anti_patterns": ["use the bare ID"],
+      "tags": ["ids"]
+    },
+    {
+      "id": "di-006",
+      "prompt": "This project does not use the standard template set. Can I still do document-driven testing?",
+      "scope": ["document-intelligence.md", "documents.md"],
+      "expected_patterns": ["re:(fall ?back|generic|discovery)", "re:(derive|infer).{0,30}(scheme|ID)", "re:(README|issue|ticket|comment|test)"],
+      "anti_patterns": ["document-driven testing is not possible"],
+      "tags": ["fallback"]
+    },
+    {
+      "id": "di-007",
+      "prompt": "A requirement is implied by a user flow diagram but never stated in the PRD. Is it testable?",
+      "scope": ["document-intelligence.md"],
+      "expected_patterns": ["re:(implicit|implied|derived)", "re:(label|mark|record).{0,30}(source|origin|derivation)", "re:(confirm|ambiguous|decision)"],
+      "anti_patterns": [],
+      "tags": ["implicit"]
+    },
+    {
+      "id": "di-008",
+      "prompt": "How do I know I have read enough of the documents to start?",
+      "scope": ["document-intelligence.md", "document-map.md"],
+      "expected_patterns": ["re:(coverage|self-check|checklist)", "re:(every|each).{0,25}(section|heading|document)", "re:(not specified|unread|skipped)"],
+      "anti_patterns": ["read the summary sections"],
+      "tags": ["coverage-check"]
+    },
+    {
+      "id": "di-009",
+      "prompt": "Extract the permissions matrix into test cases",
+      "scope": ["document-intelligence.md", "document-map.md"],
+      "expected_patterns": ["re:(role|roles)", "re:(allow|deny|permit)", "re:(every cell|each cell|both|negative)", "re:(server|endpoint|API)"],
+      "anti_patterns": ["test only the allowed combinations"],
+      "tags": ["permissions"]
+    },
+    {
+      "id": "di-010",
+      "prompt": "The spec is not in the working tree. Is it missing?",
+      "expected_patterns": ["re:git ls-tree|git log|git show|history", "re:(before|check).{0,30}(conclud|missing)"],
+      "anti_patterns": ["report that no specification exists"],
+      "tags": ["discovery"]
+    },
+    {
+      "id": "di-011",
+      "prompt": "A document has 400 lines and I only need the acceptance criteria. Can I skip the rest?",
+      "scope": ["document-intelligence.md"],
+      "expected_patterns": ["re:(complete|completely|in full|entire|whole)", "re:(skipped|missed).{0,40}(requirement|section)"],
+      "anti_patterns": ["read only the relevant sections"],
+      "tags": ["completeness"]
+    },
+    {
+      "id": "di-012",
+      "prompt": "Which document decides wording, thresholds, and permitted values when the app and my intuition disagree?",
+      "scope": ["document-intelligence.md", "documents.md"],
+      "expected_patterns": ["re:(spec|PRD|document).{0,30}(decides|source of truth|authority)", "re:(product decision|not self-evident|needs the spec)"],
+      "anti_patterns": [],
+      "tags": ["authority"]
+    },
+    {
+      "id": "di-013",
+      "prompt": "Summarise what the data model and architecture documents contribute to testing",
+      "scope": ["document-intelligence.md", "document-map.md"],
+      "expected_patterns": ["re:(data model|entity|schema)", "re:(constraint|cascade|nullable|unique|integrity)", "re:(architecture|seam|boundary|integration)"],
+      "anti_patterns": [],
+      "tags": ["data-model"]
+    },
+    {
+      "id": "di-014",
+      "prompt": "Turn one vertical slice into a complete module verdict",
+      "scope": ["document-intelligence.md", "results.md"],
+      "expected_patterns": ["re:(required evidence|Required-evidence)", "re:acceptance", "re:(owed|still|missing)", "re:(module|slice).{0,20}(file|verdict)"],
+      "anti_patterns": ["all cases passed so the slice passes"],
+      "tags": ["slice-verdict"]
+    },
+    {
+      "id": "di-015",
+      "prompt": "Documents change while I am testing. How do I keep the run honest?",
+      "scope": ["document-intelligence.md"],
+      "expected_patterns": ["re:(version|commit|revision|pin)", "re:(record|state|note)", "re:(drift|stale|changed)"],
+      "anti_patterns": [],
+      "tags": ["versioning"]
+    },
+    {
+      "id": "di-016",
+      "prompt": "How do I decide which requirements are open decisions rather than approved requirements?",
+      "expected_patterns": ["re:(Q-|PM-|UX-|DS-|DM-)", "re:provisional", "re:(not approved|not an approved|gate|MVP)"],
+      "anti_patterns": [],
+      "tags": ["provisional"]
+    }
+  ]
+}

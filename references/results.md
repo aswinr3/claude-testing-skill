@@ -51,7 +51,9 @@ has no module structure to speak of.
 
 Dated directories so regression comparison has history; `latest` so links and scripts don't need updating. If the project already has a results convention, follow it instead and say so.
 
-Add `test-results/` to `.gitignore` unless the team wants runs committed — ask rather than assuming.
+**Commit the run record** — it is the deliverable and the reason the test branch
+exists (`branching.md`). Add `test-results/` to `.gitignore` only when the team
+explicitly does not want run history in git. Ask once, then follow the answer.
 
 ## The rule that matters most
 

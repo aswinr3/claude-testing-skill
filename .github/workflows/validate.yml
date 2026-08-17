@@ -1,0 +1,53 @@
+name: Validate skill
+
+on:
+  push:
+    paths: ['SKILL.md', 'references/**', 'evals/**', 'scripts/**', '.github/workflows/validate.yml']
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # 3.9 on purpose: the runner must work on the oldest Python a contributor
+      # is likely to have. A harness that only runs on the CI pin is a harness
+      # contributors cannot use.
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.9' }
+
+      # Structure + self-consistency: dangling refs, orphans, line budget,
+      # column-count claims, one run-directory template, round-trip contiguity,
+      # and the contradiction registry.
+      - name: Validate structure and consistency
+        run: python3 scripts/validate.py
+
+      # Static evals. Deferred (unjudgeable) cases are excluded from the rate,
+      # never counted as passes.
+      - name: Static evals
+        run: python3 scripts/run_evals.py --static --min-pass-rate 95
+
+      - name: Preflight parses
+        run: bash -n scripts/preflight.sh
+
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      # The deterministic UI sweep is scored on fixtures every push. A drop in
+      # precision or recall fails the build.
+      - name: UI-sweep precision/recall
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm i -D @playwright/test >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+          node evals/ui-audit/harness.mjs | tee /tmp/scores.json
+          node -e "
+            const r = require('/tmp/scores.json');
+            const v = r['v3 (label-aware)'] ?? Object.values(r).pop();
+            if (v.precision < 1 || v.recall < 1) {
+              console.error('UI sweep regressed:', v); process.exit(1);
+            }
+            console.log('UI sweep precision/recall = 1.00/1.00');
+          "

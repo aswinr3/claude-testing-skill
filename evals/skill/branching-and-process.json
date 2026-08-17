@@ -1,0 +1,101 @@
+{
+  "capability": "branching-and-process",
+  "version": "1.0",
+  "evals": [
+    {
+      "id": "bp-001",
+      "prompt": "Set up a branch for this test work. We are on main.",
+      "scope": ["branching.md"],
+      "expected_patterns": ["re:<parent>-test-|parent.{0,12}-test-", "switch OR checkout", "re:never .{0,30}(main|master|default)"],
+      "anti_patterns": ["commit test work directly to main"],
+      "tags": ["branching"]
+    },
+    {
+      "id": "bp-002",
+      "prompt": "Can I nest the test branch under main, like main/tests?",
+      "scope": ["branching.md"],
+      "expected_patterns": ["re:(impossible|cannot|can not)", "re:refs/heads", "re:(file|directory)"],
+      "anti_patterns": [],
+      "tags": ["branching", "git-semantics"]
+    },
+    {
+      "id": "bp-003",
+      "prompt": "HEAD is detached and the tree is dirty. What do I check before branching?",
+      "scope": ["branching.md"],
+      "expected_patterns": ["detached", "re:(dirty|uncommitted|stash|status)", "re:(guard|before|check)"],
+      "anti_patterns": [],
+      "tags": ["branching", "guards"]
+    },
+    {
+      "id": "bp-004",
+      "prompt": "The repository I am about to branch contains a second git repository in a subdirectory. What can go wrong?",
+      "scope": ["preflight.md", "branching.md"],
+      "expected_patterns": ["re:git -C", "re:(nested|vendored|submodule|second|inner)", "re:(cwd|working directory|wrong repo)"],
+      "anti_patterns": [],
+      "tags": ["preflight", "nested-repo"]
+    },
+    {
+      "id": "bp-005",
+      "prompt": "How do I commit the run record without sweeping in unrelated pending changes?",
+      "scope": ["preflight.md", "branching.md"],
+      "expected_patterns": ["re:(explicit|named) path", "re:git add -A", "re:(snapshot|pre-existing|dirty)"],
+      "anti_patterns": [],
+      "tags": ["preflight", "commit-safety"]
+    },
+    {
+      "id": "bp-006",
+      "prompt": "Where should Playwright write artifacts so it does not delete the run record?",
+      "expected_patterns": ["outputDir", "re:test-results", "re:(wipe|wiped|clear|delete)", "re:\\.playwright-artifacts"],
+      "anti_patterns": [],
+      "tags": ["preflight", "outputdir"]
+    },
+    {
+      "id": "bp-007",
+      "prompt": "Two test campaigns run in the same repo and their artifacts collide. Fix it.",
+      "scope": ["preflight.md"],
+      "expected_patterns": ["re:(per-run|namespac|unique|RUN_ID|RUN_DIR)", "outputDir"],
+      "anti_patterns": [],
+      "tags": ["preflight", "collision"]
+    },
+    {
+      "id": "bp-008",
+      "prompt": "Every Playwright failure screenshot is called test-failed-1.png. How do I keep them traceable?",
+      "scope": ["preflight.md", "evidence.md"],
+      "expected_patterns": ["re:afterEach|testInfo", "re:TC-", "re:(rename|naming|capture.?time|at capture)"],
+      "anti_patterns": ["copy them after the run"],
+      "tags": ["preflight", "evidence-naming"]
+    },
+    {
+      "id": "bp-009",
+      "prompt": "The project uses Cypress, not Playwright. Can this process still run?",
+      "scope": ["preflight.md"],
+      "expected_patterns": ["cypress", "re:(runner|detect|adapter|non-Playwright)"],
+      "anti_patterns": ["this process requires Playwright"],
+      "tags": ["preflight", "runner-agnostic"]
+    },
+    {
+      "id": "bp-010",
+      "prompt": "The test harness exited 0 but ran zero tests. Is that a pass?",
+      "scope": ["preflight.md", "results.md"],
+      "expected_patterns": ["re:(zero|0) tests", "re:(exit|exit code|status)", "re:(not a pass|never|fail|reject)"],
+      "anti_patterns": ["exit 0 means the suite passed"],
+      "tags": ["preflight", "harness-defect"]
+    },
+    {
+      "id": "bp-011",
+      "prompt": "What must be verified before a run starts, mechanically rather than by remembering?",
+      "scope": ["preflight.md"],
+      "expected_patterns": ["re:(preflight|script)", "re:(repo|branch)", "re:(runner|outputDir)", "re:(exit|abort|block)"],
+      "anti_patterns": [],
+      "tags": ["preflight", "gate"]
+    },
+    {
+      "id": "bp-012",
+      "prompt": "What goes on the test branch and what happens when the run finishes?",
+      "scope": ["branching.md"],
+      "expected_patterns": ["re:(commit|push)", "re:(run record|test-results|results)", "re:(PR|merge|finish|hand)"],
+      "anti_patterns": [],
+      "tags": ["branching", "lifecycle"]
+    }
+  ]
+}

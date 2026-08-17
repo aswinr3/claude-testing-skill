@@ -1,0 +1,108 @@
+{
+  "capability": "dependencies-and-targets",
+  "version": "1.0",
+  "evals": [
+    {
+      "id": "dt-001",
+      "prompt": "What do you need from me before you start testing my platform?",
+      "expected_patterns": ["re:(credential|account|login).{0,40}role|role.{0,40}(credential|account)", "re:disposable", "re:(specification|spec|PRD)", "re:(URL|environment)"],
+      "anti_patterns": ["start now and ask later"],
+      "tags": ["gate"]
+    },
+    {
+      "id": "dt-002",
+      "prompt": "I gave you a merchant login but not an admin one. Test what you can.",
+      "expected_patterns": ["re:(explicit|explicitly|said|told|instruct)", "re:(agreed scope|reduced scope|record|Not run)"],
+      "anti_patterns": [],
+      "tags": ["gate", "explicit-reduction"]
+    },
+    {
+      "id": "dt-003",
+      "prompt": "I have not given you an admin login. Go ahead and test the platform.",
+      "expected_patterns": ["re:(ask|wait|block|gate)", "re:(critical|admin|role)"],
+      "anti_patterns": ["file the admin panel as not run and continue"],
+      "tags": ["gate", "blocking"]
+    },
+    {
+      "id": "dt-004",
+      "prompt": "No accessibility target and no performance budget were given. Do you stop?",
+      "expected_patterns": ["re:(assume|assumption|defensible|floor)", "re:(state|note|record|say so)", "re:(proceed|non-critical)"],
+      "anti_patterns": ["block the run until they answer"],
+      "tags": ["gate", "non-critical"]
+    },
+    {
+      "id": "dt-005",
+      "prompt": "What are the app's routes and query-parameter names? Should you ask me?",
+      "expected_patterns": ["re:(discover|driving the app|by testing)", "re:(never ask|do not ask|Discover them)"],
+      "anti_patterns": [],
+      "tags": ["discovery"]
+    },
+    {
+      "id": "dt-006",
+      "prompt": "We only have a hosted staging URL, no source. What can you still verify?",
+      "scope": ["targets.md"],
+      "expected_patterns": ["re:(black.?box|Mode C)", "re:(discover|map|crawl|route)", "re:(cannot|can not|limits)"],
+      "anti_patterns": ["nothing can be tested without source"],
+      "tags": ["modes"]
+    },
+    {
+      "id": "dt-007",
+      "prompt": "The target is our production site. What are the rules?",
+      "scope": ["targets.md"],
+      "expected_patterns": ["re:read.?only", "re:(no load|no destructive|not create|no test.?data)", "re:(authoris|authoriz|permission)"],
+      "anti_patterns": ["run the full suite against production"],
+      "tags": ["safety"]
+    },
+    {
+      "id": "dt-008",
+      "prompt": "Testing a hosted build. What must be recorded so a drift finding is not ambiguous?",
+      "scope": ["targets.md"],
+      "expected_patterns": ["re:(build|commit|version|revision)", "re:(stale|deployment|ambiguous)"],
+      "anti_patterns": [],
+      "tags": ["provenance"]
+    },
+    {
+      "id": "dt-009",
+      "prompt": "We have the source but cannot run the app. What is possible?",
+      "scope": ["targets.md"],
+      "expected_patterns": ["re:Mode B|code only", "re:(unit|static|review|read)", "re:(cannot|claim)"],
+      "anti_patterns": [],
+      "tags": ["modes"]
+    },
+    {
+      "id": "dt-010",
+      "prompt": "Report your orientation before starting",
+      "expected_patterns": ["re:Mode [A-D]", "re:(Docs|documents)", "re:(Runner|Playwright|Vitest)", "re:(Baseline|baseline)"],
+      "anti_patterns": [],
+      "tags": ["step-0"]
+    },
+    {
+      "id": "dt-011",
+      "prompt": "The existing suite already has two failures before I change anything. What do you do with them?",
+      "expected_patterns": ["re:baseline", "re:(pre-existing|already fail|existing)", "re:(record|attribut)"],
+      "anti_patterns": ["fix them first"],
+      "tags": ["baseline"]
+    },
+    {
+      "id": "dt-012",
+      "prompt": "Should you pause halfway through to tell me how it's going?",
+      "expected_patterns": ["re:(never pause|do not pause|finish|run to completion)", "re:(report once|then report)"],
+      "anti_patterns": [],
+      "tags": ["execution"]
+    },
+    {
+      "id": "dt-013",
+      "prompt": "design.html is present but 0 bytes. What now?",
+      "expected_patterns": ["re:(stub|empty|0 bytes|non-empty)", "re:(skip|say so|unavailable)"],
+      "anti_patterns": ["compare against it anyway"],
+      "tags": ["step-0", "design"]
+    },
+    {
+      "id": "dt-014",
+      "prompt": "When is it right to stop a run once it has started?",
+      "expected_patterns": ["re:(damage|destructive|real data)", "re:(not authoris|not authoriz|unauthoris)"],
+      "anti_patterns": [],
+      "tags": ["execution", "safety"]
+    }
+  ]
+}

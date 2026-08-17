@@ -1,0 +1,139 @@
+{
+  "capability": "test-cases-and-types",
+  "version": "1.0",
+  "evals": [
+    {
+      "id": "tc-001",
+      "prompt": "Write a good test case for a discount code field",
+      "expected_patterns": ["re:precondition", "re:(oracle|observable|expected)", "re:(boundary|equivalence|decision table|state transition)", "re:(requirement ID|namespaced|traceab)"],
+      "anti_patterns": ["verify it works", "check the page looks right"],
+      "tags": ["case-anatomy"]
+    },
+    {
+      "id": "tc-002",
+      "prompt": "Is 'login works' an acceptable expected result?",
+      "expected_patterns": ["re:(single|one) observable", "re:(redirect|/dashboard|header|shows)"],
+      "anti_patterns": [],
+      "tags": ["oracle"]
+    },
+    {
+      "id": "tc-003",
+      "prompt": "Should a case also state what must NOT happen?",
+      "expected_patterns": ["re:negative oracle", "re:(no email|not sent|no second charge|must not)"],
+      "anti_patterns": [],
+      "tags": ["negative-oracle"]
+    },
+    {
+      "id": "tc-004",
+      "prompt": "Name the case-derivation techniques to use instead of intuition",
+      "expected_patterns": ["re:boundary value", "re:equivalence partition", "re:decision table", "re:state transition", "re:(pairwise|error guessing)"],
+      "anti_patterns": [],
+      "tags": ["techniques"]
+    },
+    {
+      "id": "tc-005",
+      "prompt": "Use 'some user' and 'a valid amount' as the test data?",
+      "expected_patterns": ["re:concrete", "re:@|999999|-1|test.local", "re:(never|not) .{0,20}some user"],
+      "anti_patterns": [],
+      "tags": ["data"]
+    },
+    {
+      "id": "tc-006",
+      "prompt": "A parameter accepts only values from a known list. How do I test it?",
+      "expected_patterns": ["re:both polarit|both", "re:(valid|succeed|success)", "re:(invalid|reject)", "re:(unrelated reason|wrong name|not supported)"],
+      "anti_patterns": [],
+      "tags": ["polarity"]
+    },
+    {
+      "id": "tc-007",
+      "prompt": "This requirement depends on an unresolved product question. Can it gate our MVP?",
+      "expected_patterns": ["re:provisional", "re:(not an approved|not approved)", "re:(Q-|PM-|UX-|DS-)"],
+      "anti_patterns": [],
+      "tags": ["provisional"]
+    },
+    {
+      "id": "tc-008",
+      "prompt": "Explain the nine test types and what each answers",
+      "scope": ["test-types.md"],
+      "expected_patterns": ["re:unit", "re:integration", "re:smoke", "re:sanity", "re:functional", "re:regression", "re:exploratory", "re:non-functional"],
+      "anti_patterns": [],
+      "tags": ["types"]
+    },
+    {
+      "id": "tc-009",
+      "prompt": "In what order should the types run in CI?",
+      "expected_patterns": ["re:smoke", "re:(gate|fail fast|failing fast)", "re:(build order|execution order|order)"],
+      "anti_patterns": [],
+      "tags": ["pipeline"]
+    },
+    {
+      "id": "tc-010",
+      "prompt": "Is mocking a test type or a technique?",
+      "expected_patterns": ["re:technique", "re:(inside|within|applied at)", "re:dependency"],
+      "anti_patterns": [],
+      "tags": ["mock"]
+    },
+    {
+      "id": "tc-011",
+      "prompt": "How should I prioritise which tests to write first?",
+      "scope": ["test-strategy.md"],
+      "expected_patterns": ["re:risk", "re:likelihood", "re:impact", "re:(money|data loss|authz|authoriz)"],
+      "anti_patterns": ["document order"],
+      "tags": ["risk"]
+    },
+    {
+      "id": "tc-012",
+      "prompt": "What coverage percentage should be our quality gate?",
+      "scope": ["test-strategy.md"],
+      "expected_patterns": ["re:coverage", "re:(smoke detector|not a goal|proves nothing|does not prove)"],
+      "anti_patterns": ["aim for 100% coverage"],
+      "tags": ["coverage"]
+    },
+    {
+      "id": "tc-013",
+      "prompt": "What shape should the suite have across levels?",
+      "scope": ["test-strategy.md"],
+      "expected_patterns": ["re:unit", "re:integration", "re:(e2e|end.to.end)", "re:(cheapest|push|down|fewer)"],
+      "anti_patterns": [],
+      "tags": ["shape"]
+    },
+    {
+      "id": "tc-014",
+      "prompt": "When do we stop testing and ship?",
+      "scope": ["test-strategy.md"],
+      "expected_patterns": ["re:exit criteria", "re:(blocking|blocker|severity)", "re:(risk|requirement|coverage)"],
+      "anti_patterns": ["when all tests are green"],
+      "tags": ["exit"]
+    },
+    {
+      "id": "tc-015",
+      "prompt": "Emit these cases as TSV for a Google Sheet and paste results back",
+      "scope": ["test-cases-sheet.md"],
+      "expected_patterns": ["re:(TSV|tab)", "re:Status", "re:(Last Run|Defect Ref|Evidence)", "re:(contiguous|block|rectangular)"],
+      "anti_patterns": [],
+      "tags": ["sheet"]
+    },
+    {
+      "id": "tc-016",
+      "prompt": "What should the first column of the case register be, and why?",
+      "scope": ["test-cases-sheet.md"],
+      "expected_patterns": ["re:Module", "re:(Slice|slice)", "re:(group|filter|own)"],
+      "anti_patterns": [],
+      "tags": ["register"]
+    },
+    {
+      "id": "tc-017",
+      "prompt": "How do I test that we behave correctly when a dependency fails or stalls?",
+      "expected_patterns": ["re:(page\\.route|vi\\.mock)", "re:(fail|fault|error|503|500)", "re:(timeout|stall|abort|slow)"],
+      "anti_patterns": [],
+      "tags": ["fault-injection"]
+    },
+    {
+      "id": "tc-018",
+      "prompt": "Exploratory testing found three bugs. What happens to them?",
+      "expected_patterns": ["re:(functional|regression) case|become", "re:(charter|time box|session)"],
+      "anti_patterns": [],
+      "tags": ["exploratory"]
+    }
+  ]
+}
