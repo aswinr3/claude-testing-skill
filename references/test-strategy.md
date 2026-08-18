@@ -71,6 +71,29 @@ The economic argument, per bug caught:
 
 The exception worth respecting: for UI-heavy products, integration-level component tests (rendering real components with real DOM, mocking only network) often carry more weight than pure unit tests. Coverage should follow how the product actually breaks.
 
+## How many cases — budget the count before you write
+
+The SKILL's *Coverage volume* rule is non-negotiable: for a web application of real size (multiple modules, several roles, workflow-heavy), the register floors at **200 cases and ranges up to ~500**. This section is the method for hitting that honestly rather than padding.
+
+**1. Enumerate the surface first.** Before writing any case, list every module × screen × role × primary action, plus every input field and every state a record can be in. This inventory *is* the case budget — you are not inventing cases, you are reading them off the product.
+
+**2. Multiply each feature by the derivation techniques.** A single "edit amount" field is not one case. It is: happy edit, min−1/min/max/max+1 boundaries, empty, non-numeric, negative, huge, wrong-locale decimal, plus "no permission to edit" per role. One field routinely yields 8–12 rows. Apply this expansion to *every* input, not a chosen few.
+
+**3. Per-module rough yields** (calibrate to what the module actually does):
+
+| Module weight | Example | Expected cases |
+|---|---|---|
+| Heavy (money, complex CRUD, multi-view) | Finance, Projects/Tasks | 30–60 each |
+| Medium (CRUD + collaboration) | Chat, Dashboards, Members | 15–30 each |
+| Light (mostly read, few actions) | Inbox, single settings tab | 8–15 each |
+| Cross-cutting | Auth, authorization matrix, non-functional | 30–80 combined |
+
+Sum the per-module budgets. **If the total lands under the floor for the product's size, you have missed cases — go back to step 1 and find them.** Undershooting is a signal, not a stopping point.
+
+**4. The authorization matrix multiplies fast and is where suites are thinnest.** Every protected action × every role (here: Owner/Admin/Member/Limited/Guest) × {UI-gate hidden?, server endpoint denied?} is a case. A dozen protected actions across five roles is already ~120 authorization rows on its own — assert both the hidden control *and* the server-side denial (a hidden button is not an access control).
+
+**5. Write every row, then execute what the run allows.** Rows are cheap; execution is expensive. Generate the *entire* enumerated register up front with `Status = Not run`, then flip rows to Pass/Fail as you execute, leaving the remainder as honest `Not run — <reason>` accounting. Never let a token or time budget shrink the *register*; it only shrinks how many rows you execute this pass. A case never written is coverage you falsely claim to have considered.
+
 ## Test data strategy
 
 The biggest practical cause of flake in a parallel Playwright suite is shared data.

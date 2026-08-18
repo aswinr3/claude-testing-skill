@@ -14,12 +14,16 @@ npm i -D @axe-core/playwright
 
 ```ts
 // e2e/ui/audit.ts
-import type { Page } from '@playwright/test'
+import type { Page, APIRequestContext } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 
 export type Issue = { rule: string; severity: 'high' | 'medium' | 'low'; detail: string; element?: string }
 
-export async function auditPage(page: Page, opts: { minTarget?: number } = {}): Promise<Issue[]> {
+export async function auditPage(
+  page: Page,
+  request: APIRequestContext,          // needed to confirm broken images over HTTP
+  opts: { minTarget?: number } = {},
+): Promise<Issue[]> {
   const minTarget = opts.minTarget ?? 24          // WCAG 2.2 AA; raise to the design system's value
   const issues: Issue[] = []
 
@@ -66,7 +70,11 @@ export async function auditPage(page: Page, opts: { minTarget?: number } = {}): 
       const hidY = s.overflowY === 'hidden' || s.overflowY === 'clip'
       const clippedX = hidX && el.scrollWidth > el.clientWidth + 1
       const clippedY = hidY && el.scrollHeight > el.clientHeight + 1
-      if ((clippedX || clippedY) && s.textOverflow !== 'ellipsis') {
+      // `-webkit-line-clamp` is DELIBERATE truncation and the browser renders its
+      // own ellipsis at the clamp point. Card titles and teaser copy use it
+      // everywhere; treating it as accidental clipping is pure noise.
+      const clamped = parseInt(s.getPropertyValue('-webkit-line-clamp'), 10) > 0
+      if ((clippedX || clippedY) && s.textOverflow !== 'ellipsis' && !clamped) {
         out.push({
           rule: 'text-clipped', severity: 'high',
           detail: `Text is cut off with no ellipsis or scroll: "${el.textContent.trim().slice(0, 60)}"`,
@@ -140,19 +148,59 @@ export async function auditPage(page: Page, opts: { minTarget?: number } = {}): 
     return out.slice(0, 20)
   }, minTarget))
 
-  // ---- 6. Broken images and images without alt
-  issues.push(...await page.evaluate(() => {
+  // ---- 6. Broken images — TWO PHASES. Never report from the DOM alone.
+  //
+  // `complete && naturalWidth === 0` is a SNAPSHOT of one moment. Three different
+  // situations produce it and only one is a defect:
+  //
+  //   the asset really is missing (4xx/5xx)      -> defect
+  //   it had not finished loading when we looked -> not a defect, we were early
+  //   it is lazy and was never scrolled into view-> not a defect, nothing was requested
+  //
+  // A slow CDN, a `loading="lazy"` image below the fold, or a sweep that fires
+  // before the network settles will each look exactly like a missing file. Phase 1
+  // collects CANDIDATES; phase 2 asks the server. Only phase 2 produces a finding.
+  const candidates = await page.evaluate(() => {
     const out: any[] = []
     for (const img of Array.from(document.images)) {
-      if (img.complete && img.naturalWidth === 0) {
-        out.push({ rule: 'broken-image', severity: 'high', detail: `Failed to load: ${img.src}` })
-      }
-      if (!img.hasAttribute('alt')) {
-        out.push({ rule: 'image-missing-alt', severity: 'medium', detail: `No alt attribute: ${img.src}` })
-      }
+      const started = img.currentSrc || img.src
+      if (img.complete && img.naturalWidth === 0 && started)
+        out.push({ src: started, loading: img.getAttribute('loading') ?? 'eager' })
+      if (!img.hasAttribute('alt'))
+        out.push({ alt: false, src: img.src })
     }
     return out
-  }))
+  })
+
+  for (const c of candidates.filter((c: any) => c.alt === false))
+    issues.push({ rule: 'image-missing-alt', severity: 'medium', detail: `No alt attribute: ${c.src}` })
+
+  // Phase 2 — confirm over HTTP. `request` is Playwright's APIRequestContext.
+  const statuses = new Map<string, number>()
+  for (const c of candidates.filter((c: any) => c.src && c.alt === undefined)) {
+    // An empty `src` attribute resolves to the page URL: the browser downloads the
+    // HTML document and tries to decode it as an image. Its own defect, not a 404.
+    if (c.src.replace(/\/$/, '') === page.url().replace(/\/$/, '')) {
+      issues.push({
+        rule: 'image-empty-src', severity: 'high', element: 'img',
+        detail: `src resolves to the page itself (${c.src}) — an empty src attribute makes the browser download the document as an image`,
+      })
+      continue
+    }
+    if (!statuses.has(c.src)) {
+      let s = 0
+      try { s = (await request.get(c.src)).status() } catch { s = 0 }
+      statuses.set(c.src, s)
+    }
+    const status = statuses.get(c.src)!
+    if (status >= 400 || status === 0) {
+      issues.push({
+        rule: 'broken-image', severity: 'high', element: 'img',
+        detail: `HTTP ${status || 'unreachable'} — ${c.src}`,
+      })
+    }
+    // 2xx means the asset exists and the sweep simply measured too early. Not a defect.
+  }
 
   // ---- 7. Controls with no accessible name — nobody can address them by voice,
   //         by screen reader, or by a role-based locator. Full name computation:
@@ -246,45 +294,24 @@ export async function auditPage(page: Page, opts: { minTarget?: number } = {}): 
     }]
   }))
 
-  // ---- 10. Contrast (WCAG 1.4.3). SKIPPED, never guessed, when the backdrop is
-  //          not knowable from computed style — a background image, a gradient,
-  //          or a translucent stack. Guessing here is where contrast sweeps earn
-  //          their reputation for noise.
-  issues.push(...await page.evaluate(() => {
-    const lum = (c: string) => {
-      const m = c.match(/rgba?\(([^)]+)\)/); if (!m) return null
-      const [r, g, b, a] = m[1].split(',').map(Number)
-      if (a !== undefined && a < 1) return null
-      const f = (v: number) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }
-      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
-    }
-    const backdrop = (el: Element): number | null => {
-      for (let n: Element | null = el; n; n = n.parentElement) {
-        const s = getComputedStyle(n)
-        if (s.backgroundImage && s.backgroundImage !== 'none') return null   // unknowable
-        const L = lum(s.backgroundColor)
-        if (L !== null) return L
-      }
-      return null
-    }
-    const out: any[] = []
-    for (const el of Array.from(document.body.querySelectorAll<HTMLElement>('*'))) {
-      if (!(el.textContent || '').trim() || el.children.length > 0) continue
-      if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue
-      const s = getComputedStyle(el)
-      const fg = lum(s.color); if (fg === null) continue
-      const bg = backdrop(el); if (bg === null) continue
-      const size = parseFloat(s.fontSize), bold = parseInt(s.fontWeight, 10) >= 700
-      const large = size >= 24 || (size >= 18.66 && bold)
-      const ratio = (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05)
-      if (ratio < (large ? 3 : 4.5)) out.push({
-        rule: 'contrast-below-aa', severity: 'medium',
-        element: `${el.tagName.toLowerCase()}: ${(el.textContent || '').trim().slice(0, 30)}`,
-        detail: `${ratio.toFixed(2)}:1, minimum ${large ? 3 : 4.5}:1`,
-      })
-    }
-    return out.slice(0, 20)
-  }))
+  // ---- 10. Contrast — DELIBERATELY NOT IMPLEMENTED HERE. Use axe (rule 11).
+  //
+  // A computed-style implementation has to resolve the backdrop by walking
+  // ancestors for the first non-transparent `background-color`. That walk is
+  // wrong whenever the painted background does not come from an ancestor's
+  // computed `background-color` — a pseudo-element, a compositing layer, a
+  // parent painted by something the walk cannot read. It then returns a
+  // confident number instead of nothing.
+  //
+  // Measured on a real site: a near-white footer heading on a near-BLACK band
+  // was reported at 1.08:1 on 28 routes. 669 findings, every one wrong, and
+  // every one carrying a precise-looking ratio. Contrast is the one rule where
+  // "skip rather than guess" cannot be enforced from computed style alone,
+  // because the rule cannot tell a resolved backdrop from a wrong one.
+  //
+  // axe composites the actually-rendered colours and reports `color-contrast`
+  // correctly. On the same site it found 9 genuine violations while this rule
+  // produced 669 false ones. Let axe own contrast.
 
   // ---- 11. Accessibility (roles, structure, and everything above not covered)
   const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze()
@@ -340,7 +367,7 @@ for (const route of ROUTES) {
       await page.goto(route)
       await page.evaluate(() => document.fonts.ready)
 
-      const issues = [...runtime, ...await auditPage(page)]
+      const issues = [...runtime, ...await auditPage(page, request)]
       await testInfo.attach('ui-issues', {
         body: JSON.stringify(issues, null, 2), contentType: 'application/json',
       })
@@ -350,7 +377,14 @@ for (const route of ROUTES) {
 }
 ```
 
-**Only functionally-verified conditions carry `high`.** A rule earns the right to fail a build
+**Only functionally-verified conditions carry `high`.**
+
+**Never report a broken image from the DOM alone.** `naturalWidth === 0` is true for a
+missing asset, a slow one, and a lazy one that was never scrolled into view. Confirm with
+an HTTP request — a 2xx means you measured too early, not that the site is broken. This
+was found the honest way: a real run reported a logo as broken and the site's owner said
+"it just takes time to load". It was genuinely a 404 that time, but the rule could not
+have told the difference. A rule earns the right to fail a build
 when it proves the defect rather than infers it: occlusion confirmed by hit test, an image that
 returned 0x0, a console error, an axe critical/serious violation. Geometric and stylistic
 heuristics report at `medium` and never gate — that is what stops a correct page going red.

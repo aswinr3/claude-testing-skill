@@ -28,6 +28,7 @@ const GOOD = `<!doctype html><meta charset=utf-8><title>good</title><style>
  .btn{display:block;width:44px;height:44px}
  .dark{background:#111;color:#fff;padding:4px}                     /* T10 contrast OK */
  .hero{background-image:linear-gradient(#000,#fff);color:#777;padding:4px} /* T11 unknowable */
+ .clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;width:180px} /* T14 deliberate */
 </style>
 <div class="vis">OVERFLOWING BUT FULLY READABLE</div>
 <div class="ell">ELLIPSIZED PROPERLY SO THE USER IS TOLD</div>
@@ -43,6 +44,7 @@ const GOOD = `<!doctype html><meta charset=utf-8><title>good</title><style>
 <p class="dark">White on near-black passes contrast comfortably.</p>
 <p class="hero">Text over a gradient — background is not knowable from computed style.</p>
 <label for="sort">Sort by</label><select id="sort" style="width:200px;height:32px"><option>Name (A to Z)</option></select>
+<p class="clamp">A card title deliberately clamped to two lines, which the browser ellipsises itself, and which is therefore not an accidental clip at all.</p>
 <div id="unique-a"></div><div id="unique-b"></div>
 <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="decorative">`;
 
@@ -71,12 +73,11 @@ const BAD = `<!doctype html><meta charset=utf-8><title>bad</title><style>
 <input type="text" data-defect="D7" style="width:200px;height:30px">
 <label for="dupe">First</label><input id="dupe" aria-label="one" style="width:200px;height:32px"><input id="dupe" aria-label="two" data-defect="D8" style="width:200px;height:32px">
 <div class="wide" data-defect="D9"></div>
-<p class="faint" data-defect="D10">Grey on white at 2.8:1 is below the AA floor.</p>
 <button data-defect="D11" style="width:44px;height:44px"></button>
 <select data-defect="D12" style="width:200px;height:32px"><option>Name (A to Z)</option><option>Price</option></select>
 <input data-defect="D13" placeholder="Email address" style="width:200px;height:32px">`;
 
-const SEEDED = ['D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13'];
+const SEEDED = ['D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D11', 'D12', 'D13'];
 
 /* --------------------------------- v1 — the sweep as originally shipped ---- */
 
@@ -130,7 +131,8 @@ const v4 = () => {
     const hy = s.overflowY === 'hidden' || s.overflowY === 'clip';
     const cx = hx && el.scrollWidth > el.clientWidth + 1;
     const cy = hy && el.scrollHeight > el.clientHeight + 1;
-    if ((cx || cy) && s.textOverflow !== 'ellipsis')
+    const clamped = parseInt(s.getPropertyValue('-webkit-line-clamp'), 10) > 0;
+    if ((cx || cy) && s.textOverflow !== 'ellipsis' && !clamped)
       out.push({ rule: 'text-clipped', severity: 'high', el: tag(el) });
   }
 
@@ -245,36 +247,8 @@ const v4 = () => {
     out.push({ rule: 'page-overflows-horizontally', severity: 'high', el: tag(worst) });
   }
 
-  // 9. contrast — WCAG 1.4.3. Skipped, never guessed, when the backdrop is not
-  //    knowable from computed style (image, gradient, or a translucent stack).
-  const lum = (c) => {
-    const m = c.match(/rgba?\(([^)]+)\)/); if (!m) return null;
-    const [r, g, b, a] = m[1].split(',').map(Number);
-    if (a !== undefined && a < 1) return null;
-    const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
-    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
-  };
-  const backdrop = (el) => {
-    for (let n = el; n; n = n.parentElement) {
-      const s = getComputedStyle(n);
-      if (s.backgroundImage && s.backgroundImage !== 'none') return null;   // unknowable
-      const L = lum(s.backgroundColor);
-      if (L !== null) return L;
-    }
-    return null;
-  };
-  for (const el of document.body.querySelectorAll('*')) {
-    if (!(el.textContent || '').trim() || el.children.length > 0 || !vis(el)) continue;
-    const s = getComputedStyle(el);
-    const fg = lum(s.color); if (fg === null) continue;
-    const bg = backdrop(el); if (bg === null) continue;
-    const size = parseFloat(s.fontSize);
-    const bold = parseInt(s.fontWeight, 10) >= 700;
-    const large = size >= 24 || (size >= 18.66 && bold);
-    const ratio = (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
-    if (ratio < (large ? 3 : 4.5))
-      out.push({ rule: 'contrast-below-aa', severity: 'medium', el: tag(el) });
-  }
+  // 9. contrast — intentionally absent. axe owns it; a computed-style
+  //    implementation cannot tell a resolved backdrop from a wrong one.
 
   return out;
 };

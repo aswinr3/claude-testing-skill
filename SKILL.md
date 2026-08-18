@@ -118,6 +118,29 @@ Anything gated on an open decision (`Q-`, `PM-`, `UX-`, `DS-`, `DM-`, `S[NN]-`) 
 
 Column contract and the Gemini prompt: `test-cases-sheet.md`.
 
+## Coverage volume — derive the whole suite, not a sample
+
+**A handful of happy-path cases is a smoke test, not a test suite.** Accuracy per case (above) and *count* of cases are different obligations, and both are mandatory. A green run over 20 cases on a product with dozens of screens, roles, and workflows proves almost nothing — it silently leaves the vast majority of behaviour untested and reports confidence you did not earn.
+
+**Enumerate exhaustively, then derive every case each feature generates.** For every module/screen/endpoint, walk *all* of these and write a case wherever one applies — do not stop at the happy path:
+
+- **Happy path** — each primary action, once per role that may perform it.
+- **Alternate paths** — every branch, optional field, sort/filter/pagination, each tab/view, keyboard vs mouse, bulk vs single.
+- **Boundary values** — min−1 / min / min+1 / max−1 / max / max+1 on every numeric, length, date, quantity, and money field.
+- **Equivalence partitions** — one representative per valid and invalid class for every input.
+- **Negative & error paths** — empty, whitespace, wrong type, duplicate, malformed, oversized, injection-shaped, expired/used token, cancelled dialog, back-button mid-flow.
+- **State transitions** — every create → edit → delete → restore, draft ↔ published, each status change, empty-state vs populated.
+- **Authorization** — every protected action attempted as **each** role, plus unauthenticated and cross-tenant (both the UI gate and the server endpoint).
+- **Cross-cutting non-functional** — responsive breakpoints, a11y, and a security oracle per sensitive surface.
+
+**Scale the target to the product, and hit it.** For a web application of the size seen here (multiple modules, several roles, workflow-heavy):
+
+- **Minimum 200 cases. Up to ~500** as breadth warrants — a small tool floors lower, a large multi-module suite reaches the ceiling. Below ~200 for an app this size, treat the suite as *incomplete* and keep deriving, not done.
+- Budget cases per module *before* writing: a substantial module (Finance, Projects/Tasks) will alone yield 30–60; a thin one (Inbox) 8–15. Sum them, and if the total undershoots, you have missed cases, not run out of them.
+- **Never truncate the register to save effort or tokens.** If you must stage the work, write *all* the case rows first (they are cheap), then execute as many as the run allows and mark the rest `Not run` with a reason — a case you never wrote is invisible; a case written-but-not-run is honest coverage accounting. Silent under-generation is the failure this section exists to prevent.
+
+`test-strategy.md` covers how to budget, partition, and prioritise the enumerated set.
+
 **Prioritise by risk, not by document order.** `Risk = likelihood × impact`; high-impact paths (money, data loss, authz, the primary journey) get tested first and automated first, and silent-failure paths outrank loud ones. Push every case to the cheapest level that can still catch the failure. `test-strategy.md`.
 
 ## Non-negotiables
