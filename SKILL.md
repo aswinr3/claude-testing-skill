@@ -58,6 +58,8 @@ Distinguish critical from non-critical honestly:
 - **Critical → ask and wait:** any per-role credential, disposable-data status, an unreachable target, authorisation to test a URL that is not obviously the user's own.
 - **Non-critical → assume, note, and proceed:** a missing accessibility target (assume a defensible floor and say so), an unstated performance budget (measure and record rather than pass/fail), an ambiguous copy string. Prefer a stated assumption to a blocking question *for these*.
 
+**Before treating a missing per-role login as a blocker, check whether the product lets you create the roles yourself.** On a disposable/staging target where signup is open and an owner/admin can invite teammates, the role set is self-serviceable: create the test accounts through the app's own signup and invite flows, or move one account through the roles with the role-change feature, then run the matrix. When that path exists, a missing per-role login is **not** grounds to block or to file the authorization matrix as "Not run" — set the roles up and run it. Steps are in `advanced-techniques.md` → "Self-provision the roles". This is a write action: staging only, never against a read-only production target. Genuinely blocked only when signup is closed *and* no invite is possible.
+
 ### Step 2 — once you have what you need, do not stop
 
 With the dependencies in hand (or an explicit instruction to proceed without some), run the agreed scope end to end:

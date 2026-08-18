@@ -194,6 +194,28 @@ Prefer **404 over 403** for records outside scope: a 403 confirms the record exi
 
 Also worth covering, straight from §7 and §9: self-approval, deactivated user retains no access, stale-state requests, repeated requests, and **mass-assignment** (POST a `role` or `tenant_id` field the client shouldn't control and confirm it's ignored).
 
+### Self-provision the roles when you can, instead of blocking on credentials
+
+Missing per-role logins normally gate the run (`SKILL.md` — "gather every dependency first"). But that gate lifts the moment the product lets you *make* the accounts yourself: **if signup is open and an owner/admin can invite, you can build the whole role set without waiting for anyone.** Blocking then filing the authorization matrix as "Not run" is the mistake — the dependency was self-serviceable and you didn't service it.
+
+The mechanics, all scriptable at the API level (no browser needed once you have session cookies):
+
+1. **Register N accounts** against the signup endpoint, one cookie jar each (`curl -c jarB.txt …/sign-up/email`). One becomes owner by creating the workspace/tenant; the rest are the test subjects.
+2. **Invite them at each role** from the owner/admin session (`POST /api/team/invite {email, role}`). Read the invite token — invitation emails land in **disposable public inboxes** (Mailinator, mailinator.com/api/v2/domains/public/…) whose API needs no auth; extract the `/invite/<token>` link and POST it to the accept endpoint as the invited account.
+3. **Or cycle one account through every role** via the role-change endpoint (`PATCH /api/team/members/<userId>/role {role}`) and re-run the probes after each change. This also *tests* role-change as a side effect, and needs only one extra account. Discover the exact route and the role enum from the JS bundle or a 400's error body (e.g. `expected one of "admin"|"member"|"limited_member"|"guest"`) rather than guessing.
+4. **Run the matrix as a table**, not ad hoc: for every `(session, endpoint)` pair, record the HTTP status; the deliverable is a role × endpoint grid of real codes. Assert **both polarities** — the allowed role gets 2xx, every disallowed role gets 403/404 — and include an *authenticated non-member* column (a valid session with no membership must be 403 on every workspace-scoped route, while its own `/users/me` stays 200). Watch for a **second access layer** above membership (e.g. a finance-access grant that even ordinary members lack) — the same endpoint can be 200 for admin and 403 for member by design.
+
+```bash
+# one row of the grid — same request, five sessions
+for jar in jarOwner jarAdmin jarMember jarLimited jarGuest; do
+  code=$(curl -s -o /dev/null -w '%{http_code}' -b $jar.txt \
+    -H "x-workspace-id: $WS" "$API/api/finance/expenses")
+  echo "$jar $code"                       # expect 200 owner/admin, 403 the rest
+done
+```
+
+Only when signup is closed *and* you cannot be invited does the missing-credential gate genuinely hold — then ask and wait. Creating accounts is a write action, so it belongs to disposable/staging environments; never self-provision against production you were asked to treat read-only. Clean up or note the accounts and data you created in the run record.
+
 ---
 
 ## Accessibility — what automation cannot do
