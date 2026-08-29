@@ -9,6 +9,10 @@ Testing here is **document-driven**: the PRD and its supporting documents are th
 
 Platform-level verification runs on **Playwright**. Unit and integration run on the repo's **Jest/Vitest** setup.
 
+## FOCUS — scoped runs override everything below
+
+If a request contains the keyword `FOCUS:`, everything written after it is the **entire** boundary of the run and outranks every default in this skill — the 200-case minimum, the "read every document" mandate, and the full per-slice/per-type result-file set. Test only what `FOCUS:` names. Budget cases, document reads, and result files to that scope alone; note out-of-scope areas in one line (`Out of scope — FOCUS run`) instead of producing files for them. This override applies to that run only — the next request without `FOCUS:` returns to full default behavior.
+
 | Job | Load |
 |---|---|
 | **Preflight — run this before anything else; it exits non-zero when the run would break** | `references/preflight.md` |
