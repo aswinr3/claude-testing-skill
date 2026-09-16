@@ -15,7 +15,7 @@ jobs:
       # 3.9 on purpose: the runner must work on the oldest Python a contributor
       # is likely to have. A harness that only runs on the CI pin is a harness
       # contributors cannot use.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with: { python-version: '3.9' }
 
       # Structure + self-consistency: dangling refs, orphans, line budget,
@@ -32,8 +32,8 @@ jobs:
       - name: Preflight parses
         run: bash -n scripts/preflight.sh
 
-      - uses: actions/setup-node@v4
-        with: { node-version: '20' }
+      - uses: actions/setup-node@v5
+        with: { node-version: '22' }
 
       # The deterministic UI sweep is scored on fixtures every push. A drop in
       # precision or recall fails the build.
@@ -45,7 +45,8 @@ jobs:
           node evals/ui-audit/harness.mjs | tee /tmp/scores.json
           node -e "
             const r = require('/tmp/scores.json');
-            const v = r['v3 (label-aware)'] ?? Object.values(r).pop();
+            const v = r['v4 (current)'];
+            if (!v) { console.error('No v4 (current) entry in harness output'); process.exit(1); }
             if (v.precision < 1 || v.recall < 1) {
               console.error('UI sweep regressed:', v); process.exit(1);
             }

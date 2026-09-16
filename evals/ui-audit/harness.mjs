@@ -160,16 +160,27 @@ const v4 = () => {
     return { width: Math.max(r.right, q.right) - Math.min(r.left, q.left),
              height: Math.max(r.bottom, q.bottom) - Math.min(r.top, q.top) };
   };
-  for (const e of document.querySelectorAll('a,button,input:not([type=hidden]),select,[role="button"],[role="link"]')) {
-    if (!vis(e)) continue;
-    const box = e.getBoundingClientRect();
-    if (box.width <= 0 || box.height <= 0) continue;
-    const r = targetRect(e);
-    if (r.width >= 24 && r.height >= 24) continue;
+  // Spacing exception: an undersized target passes when a 24px-diameter circle on
+  // its centre intersects no other target and no other undersized target's circle.
+  // Without it, a 20px checkbox passes or fails on the label's font metrics.
+  const targets = [...document.querySelectorAll('a,button,input:not([type=hidden]),select,[role="button"],[role="link"]')]
+    .filter(e => { const b = e.getBoundingClientRect(); return vis(e) && b.width > 0 && b.height > 0; });
+  const small = new Set(targets.filter(e => { const r = targetRect(e); return r.width < 24 || r.height < 24; }));
+  const centre = (e) => { const b = e.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; };
+  const spaced = (e) => {
+    const [x, y] = centre(e);
+    return targets.every(t => {
+      if (t === e || t.contains(e) || e.contains(t)) return true;
+      if (small.has(t)) { const [tx, ty] = centre(t); return Math.hypot(tx - x, ty - y) >= 24; }
+      const b = t.getBoundingClientRect();
+      return Math.hypot(Math.max(b.left - x, 0, x - b.right), Math.max(b.top - y, 0, y - b.bottom)) >= 12;
+    });
+  };
+  for (const e of small) {
     const st = getComputedStyle(e), p = e.parentElement;
     const inlineInSentence = st.display === 'inline' && p &&
       p.textContent.replace(e.textContent ?? '', '').trim().length > 0;
-    if (inlineInSentence) continue;
+    if (inlineInSentence || spaced(e)) continue;
     out.push({ rule: 'touch-target-too-small', severity: 'medium', el: tag(e) });
   }
 
