@@ -179,7 +179,7 @@ Runs in-page, needs no baseline image, produces zero flake.
 |---|---|---|
 | `text-clipped` | `scrollWidth > clientWidth` **gated on `overflow` actually being `hidden`/`clip`**, no ellipsis | high |
 | `interactive-occluded` | `document.elementFromPoint` at the centre returns a different, non-ancestor element | high |
-| `touch-target-too-small` | < 24px, with **SC 2.5.8 exceptions** — inline-in-sentence, and effective target = control ∪ label | medium |
+| `touch-target-too-small` | < 24px, with **SC 2.5.8 exceptions** — inline-in-sentence, spacing (no other target within a 24px circle), and effective target = control ∪ label | medium |
 | `broken-image` | `complete && naturalWidth === 0` | high |
 | `image-missing-alt` | no `alt` attribute | medium |
 | `control-missing-accessible-name` | full name computation; **form controls never use `textContent`** | high |

@@ -117,6 +117,9 @@ export async function auditPage(
   //  - inline targets inside a sentence are exempt
   //  - the target is the region that ACCEPTS the pointer, so a control wrapped
   //    by (or associated with) a label is as big as control union label
+  //  - spacing: an undersized target passes when a circle of diameter `min` on its
+  //    centre intersects no other target and no other undersized target's circle.
+  //    Without this, a 20px checkbox passes or fails on the label's font metrics.
   issues.push(...await page.evaluate((min) => {
     const sel = 'a,button,input:not([type="hidden"]),select,[role="button"],[role="link"]'
     const labelOf = (e: HTMLElement) =>
@@ -128,17 +131,29 @@ export async function auditPage(
       return { width: Math.max(r.right, q.right) - Math.min(r.left, q.left),
                height: Math.max(r.bottom, q.bottom) - Math.min(r.top, q.top) }
     }
+    const targets = Array.from(document.querySelectorAll<HTMLElement>(sel)).filter(e => {
+      const b = e.getBoundingClientRect()
+      return e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && b.width > 0 && b.height > 0
+    })
+    const small = new Set(targets.filter(e => { const r = targetRect(e); return r.width < min || r.height < min }))
+    const centre = (e: HTMLElement) => { const b = e.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] }
+    const spaced = (e: HTMLElement) => {
+      const [x, y] = centre(e)
+      return targets.every(t => {
+        if (t === e || t.contains(e) || e.contains(t)) return true
+        if (small.has(t)) { const [tx, ty] = centre(t); return Math.hypot(tx - x, ty - y) >= min }
+        const b = t.getBoundingClientRect()
+        return Math.hypot(Math.max(b.left - x, 0, x - b.right), Math.max(b.top - y, 0, y - b.bottom)) >= min / 2
+      })
+    }
     const out: any[] = []
-    for (const e of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
-      if (!e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue
-      const box = e.getBoundingClientRect()
-      if (box.width <= 0 || box.height <= 0) continue
+    for (const e of small) {
       const r = targetRect(e)
-      if (r.width >= min && r.height >= min) continue
       const st = getComputedStyle(e), p = e.parentElement
       const inlineInSentence = st.display === 'inline' && p &&
         p.textContent!.replace(e.textContent ?? '', '').trim().length > 0
       if (inlineInSentence) continue                       // SC 2.5.8 inline exception
+      if (spaced(e)) continue                              // SC 2.5.8 spacing exception
       out.push({
         rule: 'touch-target-too-small', severity: 'medium',
         detail: `${Math.round(r.width)}x${Math.round(r.height)}px effective target, minimum ${min}x${min}`,

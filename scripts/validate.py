@@ -34,7 +34,7 @@ Error = tuple[str, str]  # (check, message)
 # ---------------------------------------------------------------- structural
 
 def check_frontmatter(errors: list[Error]) -> None:
-    text = SKILL.read_text()
+    text = SKILL.read_text(encoding="utf-8")
     if not text.startswith("---"):
         errors.append(("frontmatter", "SKILL.md has no YAML frontmatter"))
         return
@@ -45,7 +45,7 @@ def check_frontmatter(errors: list[Error]) -> None:
 
 
 def check_line_budget(errors: list[Error]) -> None:
-    n = len(SKILL.read_text().splitlines())
+    n = len(SKILL.read_text(encoding="utf-8").splitlines())
     if n > MAX_SKILL_LINES:
         errors.append(("budget", f"SKILL.md is {n} lines (max {MAX_SKILL_LINES})"))
 
@@ -61,13 +61,13 @@ def _cited(text: str) -> set[str]:
 
 def check_references_resolve(errors: list[Error]) -> None:
     on_disk = {p.name for p in REFS.glob("*.md")}
-    all_text = SKILL.read_text() + "".join(p.read_text() for p in REFS.glob("*.md"))
+    all_text = SKILL.read_text(encoding="utf-8") + "".join(p.read_text(encoding="utf-8") for p in REFS.glob("*.md"))
     for name in sorted(_cited(all_text) - on_disk):
         errors.append(("dangling-ref", f"cited but missing: references/{name}"))
 
 
 def check_no_orphans(errors: list[Error]) -> None:
-    text = SKILL.read_text()
+    text = SKILL.read_text(encoding="utf-8")
     # SKILL.md cites its own reference files both as `references/x.md` (the
     # routing table) and bare `x.md` (prose). Accept either here.
     cited = _cited(text) | set(re.findall(r"`([a-z0-9-]+\.md)`", text))
@@ -81,7 +81,7 @@ def check_no_orphans(errors: list[Error]) -> None:
 def check_column_count_claims(errors: list[Error]) -> None:
     """'20 columns, `A`-`T`' must match the letter range AND the table rows."""
     for p in sorted(REFS.glob("*.md")):
-        text = p.read_text()
+        text = p.read_text(encoding="utf-8")
         m = re.search(r"(\d+)\s+columns?,\s*`([A-Z])`\s*[–-]\s*`([A-Z])`", text)
         if not m:
             continue
@@ -100,7 +100,7 @@ def check_first_column_agreement(errors: list[Error]) -> None:
     """Files must agree on which column is first in the case register."""
     claims: dict[str, str] = {}
     for p in [SKILL, *sorted(REFS.glob("*.md"))]:
-        text = p.read_text()
+        text = p.read_text(encoding="utf-8")
         m = re.search(r"`?([A-Za-z() ]+?)`?\s+(?:is|as)\s+(?:its|the)\s+first column", text)
         if m:
             claims[p.name] = m.group(1).strip().strip("`")
@@ -118,7 +118,7 @@ def check_path_templates(errors: list[Error]) -> None:
     seen: dict[str, set[str]] = {}
     pat = re.compile(r"test-results/(<[a-z-]+>|\d{4}-\d{2}-\d{2}(?:-\d{4})?)/")
     for p in [SKILL, *sorted(REFS.glob("*.md"))]:
-        for tok in pat.findall(p.read_text()):
+        for tok in pat.findall(p.read_text(encoding="utf-8")):
             shape = "dated+time" if re.match(r"^\d{4}-\d{2}-\d{2}-\d{4}$", tok) else (
                 "dated" if re.match(r"^\d{4}-\d{2}-\d{2}$", tok) else tok)
             seen.setdefault(shape, set()).add(p.name)
@@ -151,7 +151,7 @@ def check_contradictions(errors: list[Error]) -> None:
         A, B = REFS / fa, REFS / fb
         if not (A.exists() and B.exists()):
             continue
-        if re.search(pa, A.read_text()) and re.search(pb, B.read_text()):
+        if re.search(pa, A.read_text(encoding="utf-8")) and re.search(pb, B.read_text(encoding="utf-8")):
             errors.append(("contradiction", f"{c['name']}: {fa} vs {fb} — {c['why']}"))
 
 
@@ -161,7 +161,7 @@ def check_round_trip_contiguous(errors: list[Error]) -> None:
     Sheets pastes a rectangular block. If `Notes` sits between `Defect Ref` and
     `Evidence`, the documented round-trip is impossible as written.
     """
-    text = (REFS / "test-cases-sheet.md").read_text()
+    text = (REFS / "test-cases-sheet.md").read_text(encoding="utf-8")
     letters = {}
     for line in text.splitlines():
         m = re.match(r"\|\s*([A-Z])\s*\|\s*`([^`]+)`", line)
@@ -185,6 +185,9 @@ CHECKS = [
 
 
 def main() -> None:
+    # Windows consoles default to cp1252; the report prints non-ASCII.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()

@@ -70,12 +70,12 @@ def load_content(scope: list[str] | None = None) -> str:
     companion document — an escape-hatch or migration guide. Grading the whole
     corpus for every case makes correct content fail.
     """
-    parts = [(ROOT / "SKILL.md").read_text()]
+    parts = [(ROOT / "SKILL.md").read_text(encoding="utf-8")]
     names = scope if scope else sorted(p.name for p in REFS.glob("*.md"))
     for n in names:
         p = REFS / n
         if p.exists():
-            parts.append(p.read_text())
+            parts.append(p.read_text(encoding="utf-8"))
     return "\n\n".join(parts)
 
 
@@ -135,7 +135,7 @@ def run_claude(prompt: str, system: str | None) -> str:
 
 
 def eval_spec(path: Path, mode: str) -> dict:
-    spec = json.loads(path.read_text())
+    spec = json.loads(path.read_text(encoding="utf-8"))
     results = []
     for case in spec.get("evals", []):
         scope = case.get("scope")
@@ -178,6 +178,9 @@ def eval_spec(path: Path, mode: str) -> dict:
 
 
 def main() -> None:
+    # Windows consoles default to cp1252; the report prints non-ASCII.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     g = ap.add_mutually_exclusive_group()
@@ -225,7 +228,7 @@ def main() -> None:
     print("Pass rate (scored only): {:.1f}%".format(rate))
 
     if args.json_out:
-        Path(args.json_out).write_text(json.dumps(reports, indent=2))
+        Path(args.json_out).write_text(json.dumps(reports, indent=2), encoding="utf-8")
         print("Wrote " + args.json_out)
 
     if args.min_pass_rate is not None and rate < args.min_pass_rate:
